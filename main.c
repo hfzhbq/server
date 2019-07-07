@@ -19,7 +19,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MAXLINE 30
+
+#define MAXLINE 1024
 
 /*
  *
@@ -28,12 +29,13 @@ int main(int argc, char** argv)
 {
     int listenfd;
     int connfd;
+    int ret;
 
-    char buff[MAXLINE];
+    char buff[MAXLINE+1];
     struct sockaddr_in servaddr;
     time_t ticks;
 
-    if (listenfd = socket(AF_INET, SOCK_STREAM, 0) < 0)
+    if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         printf("socket error");
 
     bzero(&servaddr, sizeof(servaddr));
@@ -47,8 +49,8 @@ int main(int argc, char** argv)
 
     while (1) {
         connfd = accept(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
-        ticks = time(NULL);
-        snprintf(buff ,sizeof(buff), "%.24s\r\n", ctime(&ticks));
+        //ticks = time(NULL);
+        snprintf(buff ,sizeof(buff), "%d\r\n", "123456");
         write(connfd, buff, strlen(buff));
         close(connfd);
     }
