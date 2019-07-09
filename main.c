@@ -19,6 +19,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
+#include <string.h>
 
 
 #define MAXLINE 30
@@ -30,9 +31,10 @@ int main(int argc, char** argv)
 {
     int listenfd;
     int connfd;
-    int ret;
+    int nwrite, nread;
 
     char buff[MAXLINE+1];
+
     struct sockaddr_in servaddr;
     time_t ticks;
 
@@ -52,19 +54,19 @@ int main(int argc, char** argv)
         bzero(buff, MAXLINE+1);
         connfd = accept(listenfd,(SA*)NULL, NULL);
         if (connfd < 0) {
-            //nt err =
-            int err = errno;
             printf("Error: %d\n", strerror(errno));
             return 1;
         }
         ticks = time(NULL);
-        //snprintf(buff, sizeof(buff), "%d\r\n", 123456);
+
         snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
         int size;
         size = sizeof(buff);
-        if ((ret = write(connfd, buff, sizeof(buff))) < 0) {
+        if ((nwrite = write(connfd, buff, sizeof(buff))) < 0) {
             printf("write error");
         }
+
+        //nread = read(connfd, b)
         close(connfd);
     }
 
