@@ -22,8 +22,21 @@
 #include <string.h>
 
 
-#define MAXLINE 30
+#define MAXLINE 1024
 #define	SA	struct sockaddr
+
+void str_echo(int sockfd)
+{
+    ssize_t nread;
+    char buff[MAXLINE];
+    while (1) {
+        if ((nread = read(sockfd, buff, sizeof(buff))) > 0) {
+            printf("nread : %d\n");
+            write(sockfd, buff, sizeof(buff));
+            return 1;
+        }
+    }
+}
 /*
  *
  */
@@ -32,6 +45,8 @@ int main(int argc, char** argv)
     int listenfd;
     int connfd;
     int nwrite, nread;
+
+    pid_t pid;
 
     char buff[MAXLINE+1];
 
@@ -51,12 +66,24 @@ int main(int argc, char** argv)
     listen(listenfd, 3);
 
     while (1) {
+
         bzero(buff, MAXLINE+1);
         connfd = accept(listenfd,(SA*)NULL, NULL);
+
         if (connfd < 0) {
             printf("Error: %d\n", strerror(errno));
             return 1;
         }
+
+        printf("Connection is established\n");
+
+        if ((pid = fork()) == 0) {
+            close(listenfd);
+            str_echo(connfd);
+            exit(0);
+        }
+
+/*
         ticks = time(NULL);
 
         snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
@@ -65,8 +92,8 @@ int main(int argc, char** argv)
         if ((nwrite = write(connfd, buff, sizeof(buff))) < 0) {
             printf("write error");
         }
+*/
 
-        //nread = read(connfd, b)
         close(connfd);
     }
 
