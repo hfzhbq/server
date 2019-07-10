@@ -22,17 +22,18 @@
 #include <string.h>
 
 
-#define MAXLINE 1024
+#define MAXLINE 1000000
 #define	SA	struct sockaddr
 
-void str_echo(int sockfd)
+int str_echo(int sockfd)
 {
     ssize_t nread;
     char buff[MAXLINE];
     while (1) {
         if ((nread = read(sockfd, buff, sizeof(buff))) > 0) {
             printf("nread : %d\n");
-            write(sockfd, buff, sizeof(buff));
+            //write(sockfd, buff, sizeof(buff));
+            //fputs(buff, stdout);
             return 1;
         }
     }
@@ -46,7 +47,7 @@ int main(int argc, char** argv)
     int connfd;
     int nwrite, nread;
 
-    pid_t pid;
+    pid_t pid = -1;
 
     char buff[MAXLINE+1];
 
@@ -63,12 +64,12 @@ int main(int argc, char** argv)
 
     bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
 
-    listen(listenfd, 3);
+    listen(listenfd, 5);
 
     while (1) {
 
         bzero(buff, MAXLINE+1);
-        connfd = accept(listenfd,(SA*)NULL, NULL);
+        connfd = accept(listenfd, (SA*)NULL, NULL);
 
         if (connfd < 0) {
             printf("Error: %d\n", strerror(errno));
@@ -77,10 +78,22 @@ int main(int argc, char** argv)
 
         printf("Connection is established\n");
 
-        if ((pid = fork()) == 0) {
+        pid = fork();
+        if (pid == 0) {
             close(listenfd);
             str_echo(connfd);
             exit(0);
+        }
+        else if (pid < 0) {
+            perror("fork");
+        }
+        else {
+            /* keep a long connection, close func will result in client receive a
+             * SIGPIPE.
+             */
+            // close(connfd);
+            //avoid zombie process
+            waitpid(pid, NULL, 0);
         }
 
 /*
@@ -94,7 +107,7 @@ int main(int argc, char** argv)
         }
 */
 
-        close(connfd);
+
     }
 
 
