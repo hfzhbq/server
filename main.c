@@ -22,22 +22,28 @@
 #include <string.h>
 
 
-#define MAXLINE 1000
+#define RECV_LINE 1000
+#define SEND_LINE 8192
 #define	SA	struct sockaddr
-static char buff[MAXLINE];
+static char recvbuff[RECV_LINE];
+static char sendbuff[SEND_LINE];
 
-int str_echo(int sockfd)
+int io_handle(int sockfd)
 {
     ssize_t nread;
+    ssize_t nwrite;
 
     while (1) {
-        nread = read(sockfd, buff, sizeof(buff));
+        nread = read(sockfd, recvbuff, sizeof(recvbuff));
+
         if (nread > 0) {
             printf("nread : %d\n");
             //write(sockfd, buff, sizeof(buff));
-            fputs(buff, stdout);
+ //           fputs(recvbuff, stdout);
             //return 1;
         }
+
+
     }
 }
 /*
@@ -50,8 +56,6 @@ int main(int argc, char** argv)
     int nwrite, nread;
 
     pid_t pid = -1;
-
-    char buff[MAXLINE+1];
 
     struct sockaddr_in servaddr;
     time_t ticks;
@@ -68,9 +72,12 @@ int main(int argc, char** argv)
 
     listen(listenfd, 5);
 
+    bzero(recvbuff, RECV_LINE+1);
+
+    memset(sendbuff, 'm', sizeof(sendbuff));
+
     while (1) {
 
-        bzero(buff, MAXLINE+1);
         connfd = accept(listenfd, (SA*)NULL, NULL);
 
         if (connfd < 0) {
@@ -83,7 +90,9 @@ int main(int argc, char** argv)
         pid = fork();
         if (pid == 0) {
             close(listenfd);
-            str_echo(connfd);
+
+            nwrite = write(connfd, sendbuff, sizeof(sendbuff));
+            io_handle(connfd);
             exit(0);
         }
         else if (pid < 0) {
