@@ -22,19 +22,21 @@
 #include <string.h>
 
 
-#define MAXLINE 1000000
+#define MAXLINE 1000
 #define	SA	struct sockaddr
+static char buff[MAXLINE];
 
 int str_echo(int sockfd)
 {
     ssize_t nread;
-    char buff[MAXLINE];
+
     while (1) {
-        if ((nread = read(sockfd, buff, sizeof(buff))) > 0) {
+        nread = read(sockfd, buff, sizeof(buff));
+        if (nread > 0) {
             printf("nread : %d\n");
             //write(sockfd, buff, sizeof(buff));
-            //fputs(buff, stdout);
-            return 1;
+            fputs(buff, stdout);
+            //return 1;
         }
     }
 }
@@ -93,7 +95,7 @@ int main(int argc, char** argv)
              */
             // close(connfd);
             //avoid zombie process
-            waitpid(pid, NULL, 0);
+ //           waitpid(pid, NULL, 0);
         }
 
 /*
