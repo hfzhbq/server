@@ -22,43 +22,38 @@
 #include <string.h>
 
 
-#define RECV_LINE 1000
-#define SEND_LINE 8192
+#define RECV_LINE 2048
+#define SEND_LINE 2048
 #define	SA	struct sockaddr
 static char recvbuff[RECV_LINE];
 static char sendbuff[SEND_LINE];
 
 int io_handle(int sockfd)
 {
-    ssize_t nread;
-    ssize_t nwrite;
+    ssize_t nread = 0;
+    ssize_t nwrite = 0;
 
     while (1) {
-        nread = read(sockfd, recvbuff, sizeof(recvbuff));
 
+        nread = recv(sockfd, recvbuff, sizeof(recvbuff), MSG_DONTWAIT);
         if (nread > 0) {
-            printf("nread : %d\n");
-            //write(sockfd, buff, sizeof(buff));
- //           fputs(recvbuff, stdout);
-            //return 1;
+            printf("nrecv : %d\n");
         }
 
-
+        nwrite = send(sockfd, sendbuff, sizeof(sendbuff), MSG_DONTWAIT);
+        if (nread > 0) {
+            printf("nsend : %d\n");
+        }
     }
 }
-/*
- *
- */
+
 int main(int argc, char** argv)
 {
-    int listenfd;
-    int connfd;
-    int nwrite, nread;
-
+    int listenfd = -1;
+    int connfd = -1;
     pid_t pid = -1;
 
     struct sockaddr_in servaddr;
-    time_t ticks;
 
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("socket error");
@@ -91,7 +86,7 @@ int main(int argc, char** argv)
         if (pid == 0) {
             close(listenfd);
 
-            nwrite = write(connfd, sendbuff, sizeof(sendbuff));
+            //nwrite = write(connfd, sendbuff, sizeof(sendbuff));
             io_handle(connfd);
             exit(0);
         }
@@ -104,23 +99,9 @@ int main(int argc, char** argv)
              */
             // close(connfd);
             //avoid zombie process
- //           waitpid(pid, NULL, 0);
+           //waitpid(pid, NULL, 0);
         }
-
-/*
-        ticks = time(NULL);
-
-        snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
-        int size;
-        size = sizeof(buff);
-        if ((nwrite = write(connfd, buff, sizeof(buff))) < 0) {
-            printf("write error");
-        }
-*/
-
-
     }
-
 
     return (EXIT_SUCCESS);
 }
