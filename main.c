@@ -41,7 +41,7 @@ int io_handle(int sockfd)
         }
 
         nwrite = send(sockfd, sendbuff, sizeof(sendbuff), MSG_DONTWAIT);
-        if (nread > 0) {
+        if (nwrite > 0) {
             printf("nsend : %d\n");
         }
     }
