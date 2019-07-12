@@ -30,19 +30,25 @@ static char sendbuff[SEND_LINE];
 
 int io_handle(int sockfd)
 {
-    ssize_t nread = 0;
-    ssize_t nwrite = 0;
+    ssize_t nrecv = 0;
+    ssize_t nsend = 0;
 
     while (1) {
 
-        nread = recv(sockfd, recvbuff, sizeof(recvbuff), MSG_DONTWAIT);
-        if (nread > 0) {
-            printf("nrecv : %d\n");
+        nrecv = recv(sockfd, recvbuff, sizeof(recvbuff), MSG_DONTWAIT);
+        if (nrecv > 0) {
+            printf("nrecv : %d\n", nrecv);
+        }
+        else if (nrecv < 0) {
+            //perror("recv error");
         }
 
-        nwrite = send(sockfd, sendbuff, sizeof(sendbuff), MSG_DONTWAIT);
-        if (nwrite > 0) {
-            printf("nsend : %d\n");
+        nsend = send(sockfd, sendbuff, sizeof(sendbuff), MSG_DONTWAIT);
+        if (nsend > 0) {
+            printf("nsend : %d\n", nsend);
+        }
+        else if (nsend < 0) {
+            //perror("nsend");
         }
     }
 }
