@@ -20,19 +20,25 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <signal.h>
 
 
 #define RECV_LINE 2048
 #define SEND_LINE 2048
+
 #define	SA	struct sockaddr
+
 static char recvbuff[RECV_LINE];
 static char sendbuff[SEND_LINE];
 
-int io_handle(int sockfd)
-{
-    ssize_t nrecv = 0;
-    ssize_t nsend = 0;
+int listenfd = -1;
+int connfd = -1;
+pid_t pid1 = -1;
+pid_t pid2 = -1;
 
+int recv_handle(int sockfd) {
+
+    ssize_t nrecv = 0;
     while (1) {
 
         nrecv = recv(sockfd, recvbuff, sizeof(recvbuff), MSG_DONTWAIT);
@@ -41,7 +47,31 @@ int io_handle(int sockfd)
         }
         else if (nrecv < 0) {
             //perror("recv error");
+
         }
+    }
+}
+
+void server_stop(int signo)
+{
+    printf("server stop\n");
+    close(connfd);
+    close(listenfd);
+    if (pid1 > 0) {
+        waitpid(pid1, NULL, 0);
+    }
+    else if (pid2 > 0) {
+        waitpid(pid2, NULL, 0);
+    }
+    _exit(0);
+}
+
+int send_handle(int sockfd)
+{
+    ssize_t nrecv = 0;
+    ssize_t nsend = 0;
+
+    while (1) {
 
         nsend = send(sockfd, sendbuff, sizeof(sendbuff), MSG_DONTWAIT);
         if (nsend > 0) {
@@ -55,15 +85,13 @@ int io_handle(int sockfd)
 
 int main(int argc, char** argv)
 {
-    int listenfd = -1;
-    int connfd = -1;
-    pid_t pid = -1;
 
     struct sockaddr_in servaddr;
 
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("socket error");
     }
+
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(9090);
@@ -77,6 +105,8 @@ int main(int argc, char** argv)
 
     memset(sendbuff, 'm', sizeof(sendbuff));
 
+    signal(SIGINT, server_stop);
+
     while (1) {
 
         connfd = accept(listenfd, (SA*)NULL, NULL);
@@ -88,18 +118,27 @@ int main(int argc, char** argv)
 
         printf("Connection is established\n");
 
-        pid = fork();
-        if (pid == 0) {
+        pid1 = fork();
+        if (pid1 == 0) {
             close(listenfd);
 
             //nwrite = write(connfd, sendbuff, sizeof(sendbuff));
-            io_handle(connfd);
+            send_handle(connfd);
             exit(0);
         }
-        else if (pid < 0) {
+        else if (pid1 < 0) {
             perror("fork");
         }
         else {
+            pid2 = fork();
+            if (pid2 == 0) {
+                close(listenfd);
+                recv_handle(connfd);
+                exit(0);
+            }
+            else if (pid2 < 0){
+                perror("fork");
+            }
             /* keep a long connection, close func will result in client receive a
              * SIGPIPE.
              */
