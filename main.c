@@ -37,7 +37,7 @@ int connfd = -1;
 pid_t pid1 = -1;
 pid_t pid2 = -1;
 
-#define IOZONE_TEMP ./iozone.tmp
+#define IOZONE_TEMP "./iozone.tmp"
 int sock2fd = -1;
 
 int recv_handle(int sockfd)

@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=injection-so
+PROJECTNAME=injection_so
 
 # Active Configuration
 DEFAULTCONF=Debug
