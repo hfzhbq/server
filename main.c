@@ -21,10 +21,11 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
+#include <fcntl.h>
 
 
-#define RECV_LINE 2048
-#define SEND_LINE 2048
+#define RECV_LINE 8192
+#define SEND_LINE 8192
 
 #define	SA	struct sockaddr
 
@@ -36,8 +37,11 @@ int connfd = -1;
 pid_t pid1 = -1;
 pid_t pid2 = -1;
 
-int recv_handle(int sockfd) {
+#define IOZONE_TEMP ./iozone.tmp
+int sock2fd = -1;
 
+int recv_handle(int sockfd)
+{
     ssize_t nrecv = 0;
     while (1) {
 
@@ -46,17 +50,19 @@ int recv_handle(int sockfd) {
             printf("nrecv : %d\n", nrecv);
         }
         else if (nrecv < 0) {
-            //perror("recv error");
+//            perror("recv error");
 
         }
     }
 }
 
-void server_stop(int signo)
+void ioserver_stop(int signo)
 {
     printf("server stop\n");
     close(connfd);
     close(listenfd);
+    close(sock2fd);
+
     if (pid1 > 0) {
         waitpid(pid1, NULL, 0);
     }
@@ -68,7 +74,7 @@ void server_stop(int signo)
 
 int send_handle(int sockfd)
 {
-    ssize_t nrecv = 0;
+
     ssize_t nsend = 0;
 
     while (1) {
@@ -78,7 +84,7 @@ int send_handle(int sockfd)
             printf("nsend : %d\n", nsend);
         }
         else if (nsend < 0) {
-            //perror("nsend");
+//            perror("nsend");
         }
     }
 }
@@ -99,13 +105,14 @@ int main(int argc, char** argv)
 
     bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
 
-    listen(listenfd, 5);
+    listen(listenfd, SOMAXCONN);
 
-    bzero(recvbuff, RECV_LINE+1);
+    bzero(recvbuff, RECV_LINE);
 
+    sock2fd = open(IOZONE_TEMP, O_CREAT | O_RDWR, 0644);
     memset(sendbuff, 'm', sizeof(sendbuff));
 
-    signal(SIGINT, server_stop);
+    signal(SIGINT, ioserver_stop);
 
     while (1) {
 
@@ -121,8 +128,6 @@ int main(int argc, char** argv)
         pid1 = fork();
         if (pid1 == 0) {
             close(listenfd);
-
-            //nwrite = write(connfd, sendbuff, sizeof(sendbuff));
             send_handle(connfd);
             exit(0);
         }
@@ -139,12 +144,6 @@ int main(int argc, char** argv)
             else if (pid2 < 0){
                 perror("fork");
             }
-            /* keep a long connection, close func will result in client receive a
-             * SIGPIPE.
-             */
-            // close(connfd);
-            //avoid zombie process
-           //waitpid(pid, NULL, 0);
         }
     }
 
