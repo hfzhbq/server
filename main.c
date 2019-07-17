@@ -23,9 +23,17 @@
 #include <signal.h>
 #include <fcntl.h>
 
+struct msg_t {
+    uint8_t  type;  /* packet type */
+ //   uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
+    uint32_t len;   /* the length of payload */
+    char* payload;
+} __attribute__((packed));
 
-#define RECV_LINE 8192
-#define SEND_LINE 8192
+#define OPEN_LINE 20
+
+#define RECV_LINE 10
+#define SEND_LINE 10
 
 #define	SA	struct sockaddr
 
@@ -128,7 +136,7 @@ int main(int argc, char** argv)
         pid1 = fork();
         if (pid1 == 0) {
             close(listenfd);
-            send_handle(connfd);
+//            send_handle(connfd);
             exit(0);
         }
         else if (pid1 < 0) {
@@ -137,6 +145,22 @@ int main(int argc, char** argv)
         else {
             pid2 = fork();
             if (pid2 == 0) {
+
+                struct msg_t msg;
+                memset(&msg, 0, sizeof(msg));
+                int size = 0;
+                size = recv(connfd, &msg, OPEN_LINE, 0);
+                if (size < 0) {
+                    return 1;
+                }
+                else if (size == 0) {
+                    return 0;
+                }
+                if (msg.type == 11) {
+                    printf("recv open mesg\n");
+                    while(1);
+                }
+
                 close(listenfd);
                 recv_handle(connfd);
                 exit(0);
