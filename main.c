@@ -25,10 +25,10 @@
 
 struct msg_t {
     uint8_t  type;  /* packet type */
- //   uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
+    uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
     uint32_t len;   /* the length of payload */
     char* payload;
-} __attribute__((packed));
+}__attribute__((packed));
 
 #define OPEN_LINE 20
 
@@ -55,11 +55,31 @@ int recv_handle(int sockfd)
 
         nrecv = recv(sockfd, recvbuff, sizeof(recvbuff), MSG_DONTWAIT);
         if (nrecv > 0) {
-            printf("nrecv : %d\n", nrecv);
+//            printf("nrecv : %d\n", nrecv);
         }
         else if (nrecv < 0) {
 //            perror("recv error");
 
+        }
+    }
+}
+
+int recv_msg(int sockfd)
+{
+    ssize_t nrecv = 0;
+    while (1) {
+        struct msg_t msg;
+        memset(&msg, 0, sizeof(msg));
+
+        nrecv = recv(connfd, &msg, sizeof(msg), 0);
+        if (nrecv < 0) {
+            return 1;
+        }
+        else if (nrecv == 0) {
+            return 0;
+        }
+        if (msg.type == 11) {
+            printf("recv open mesg: type = %d, id = %d, len = %d, msg_size = %d\n", msg.type, msg.id, msg.len, sizeof(msg));
         }
     }
 }
@@ -145,24 +165,9 @@ int main(int argc, char** argv)
         else {
             pid2 = fork();
             if (pid2 == 0) {
-
-                struct msg_t msg;
-                memset(&msg, 0, sizeof(msg));
-                int size = 0;
-                size = recv(connfd, &msg, OPEN_LINE, 0);
-                if (size < 0) {
-                    return 1;
-                }
-                else if (size == 0) {
-                    return 0;
-                }
-                if (msg.type == 11) {
-                    printf("recv open mesg\n");
-                    while(1);
-                }
-
                 close(listenfd);
-                recv_handle(connfd);
+                recv_msg(connfd);
+                //recv_handle(connfd);
                 exit(0);
             }
             else if (pid2 < 0){
