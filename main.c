@@ -27,7 +27,7 @@ struct msg_t {
     uint8_t  type;  /* packet type */
     uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
     uint32_t len;   /* the length of payload */
-    char* payload;
+    char payload[0];
 }__attribute__((packed));
 
 #define OPEN_LINE 20
@@ -68,6 +68,7 @@ int recv_msg(int sockfd)
 {
     ssize_t nrecv = 0;
     while (1) {
+
         struct msg_t msg;
         memset(&msg, 0, sizeof(msg));
 
@@ -79,7 +80,18 @@ int recv_msg(int sockfd)
             return 0;
         }
         if (msg.type == 11) {
-            printf("recv open mesg: type = %d, id = %d, len = %d, msg_size = %d\n", msg.type, msg.id, msg.len, sizeof(msg));
+            printf("recv open mesg: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", msg.type, msg.id, msg.len, sizeof(msg));
+            char* payload = malloc(msg.len);
+            if (payload == NULL) {
+                perror("ioserver malloc");
+            }
+            memset(payload, 0, (size_t) msg.len);
+            nrecv = recv(connfd, payload, msg.len, 0);
+            if (nrecv < 0) {
+                perror("ioserver recv");
+            }
+            fputs(payload, stdout);
+            free(payload);
         }
     }
 }
