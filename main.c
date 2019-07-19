@@ -44,6 +44,7 @@ int listenfd = -1;
 int connfd = -1;
 pid_t pid1 = -1;
 pid_t pid2 = -1;
+static char* io_payload = NULL;
 
 #define IOZONE_TEMP "./iozone.tmp"
 int sock2fd = -1;
@@ -81,17 +82,34 @@ int recv_msg(int sockfd)
         }
         if (msg.type == 11) {
             printf("recv open mesg: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", msg.type, msg.id, msg.len, sizeof(msg));
-            char* payload = malloc(msg.len);
-            if (payload == NULL) {
+            io_payload = malloc(msg.len);
+            if (io_payload == NULL) {
                 perror("ioserver malloc");
             }
-            memset(payload, 0, (size_t) msg.len);
-            nrecv = recv(connfd, payload, msg.len, 0);
+            memset(io_payload, 0, (size_t) msg.len);
+            nrecv = recv(connfd, io_payload, msg.len, 0);
             if (nrecv < 0) {
                 perror("ioserver recv");
             }
-            fputs(payload, stdout);
-            free(payload);
+            fputs(io_payload, stdout);
+            free(io_payload);
+        }
+        else if (msg.type == 12) {
+            printf("recv write mesg: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", msg.type, msg.id, msg.len, sizeof(msg));
+            io_payload = malloc(msg.len);
+            if (io_payload == NULL) {
+                perror("ioserver malloc");
+            }
+            memset(io_payload, 0, (size_t) msg.len);
+            nrecv = recv(connfd, io_payload, msg.len, 0);
+            if (nrecv < 0) {
+                perror("ioserver recv");
+            }
+            else {
+                printf("nrecv : %d\n", nrecv);
+            }
+//            fputs(payload, stdout);
+            free(io_payload);
         }
     }
 }
@@ -102,6 +120,8 @@ void ioserver_stop(int signo)
     close(connfd);
     close(listenfd);
     close(sock2fd);
+    if (io_payload != NULL)
+        free(io_payload);
 
     if (pid1 > 0) {
         waitpid(pid1, NULL, 0);
