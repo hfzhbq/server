@@ -17,6 +17,7 @@
 
 #include <stdarg.h>
 #include <signal.h>
+#include <stdbool.h>
 
 #define IOZONE_TEMP "./iozone.tmp"
 
@@ -40,7 +41,7 @@ enum cmd_type {
     ACK
 };
 
-//#define SERVER_ADDR "192.168.2.69"
+//#define SERV_ADDR "192.168.2.70"
 #define SERV_ADDR "127.0.0.1"
 
 #define SERV_PORT 9090
@@ -53,50 +54,15 @@ static uint32_t read_id = 0;
 static uint32_t lseek_id = 0;
 static uint32_t unlink_id = 0;
 
+static char* io_payload = NULL;
+
 pthread_t tid = -1;
-int flag = 0;
+bool read_ok = false;
 int inj_ret = 0;
 
 static struct cmd_t* inj_msg = NULL;
 
 static struct sockaddr_in inj_servaddr;
-
-static void *cmd_recv_thread(void *arg)
-{
-    while(1) {
-
-        if (flag == 0) {
-            flag = 1;
-            printf("new thread is created");
-        }
-
-        struct cmd_t cmd;
-        ssize_t nrecv = 0;
-        memset(&cmd, 0, sizeof(cmd));
-
-        nrecv = recv(inj_sockfd, &cmd, sizeof(cmd), 0);
-        if (nrecv < 0) {
-            perror("inj recv error");
-            return -1;
-        }
-        else if (nrecv == 0) {
-            return 0;
-        }
-        else {
-            if (cmd.type == ACK) {
-                //printf("inj ack %d", cmd.ret);
-                inj_ret = cmd.ret;
-            }
-        }
-    }
-}
-
-static void inj_stop(int signo)
-{
-    printf("inj client stop\n");
-    if (inj_msg != NULL)
-        free(inj_msg);
-}
 
 static ssize_t inj_write(int sockfd, const void *buf, size_t size)
 {
@@ -144,6 +110,58 @@ static ssize_t inj_read(int sock_fd, void *buf, size_t size)
     }
 
     return size - nleft;
+}
+
+static void *cmd_recv_thread(void *arg)
+{
+    ssize_t nrecv = 0;
+    while (1) {
+
+        struct cmd_t cmd;
+
+        memset(&cmd, 0, sizeof(cmd));
+
+        nrecv = inj_read(inj_sockfd, &cmd, sizeof(cmd));
+        //nrecv = recv(inj_sockfd, &cmd, sizeof(cmd), MSG_DONTWAIT);
+        if (nrecv < 0) {
+            perror("inj recv error");
+            return -1;
+        }
+        else if (nrecv == 0) {
+            return 0;
+        }
+        else {
+            if (cmd.type == ACK) {
+                //printf("inj ack %d", cmd.ret);
+                inj_ret = cmd.ret;
+                if (cmd.len > 0) {
+                    printf("inj recv read cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
+                    io_payload = malloc(cmd.len);
+                    if (io_payload == NULL) {
+                        perror("inj malloc");
+                    }
+
+                    memset(io_payload, 0, cmd.len);
+                    nrecv = inj_read(inj_sockfd, io_payload, cmd.len);
+/*
+                    if (io_payload != NULL) {
+                        free(io_payload);
+                    }
+*/
+                    if (nrecv == cmd.len) {
+                        read_ok = true;
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void inj_stop(int signo)
+{
+    printf("inj client stop\n");
+    if (inj_msg != NULL)
+        free(inj_msg);
 }
 
 static int inj_socket_init()
@@ -236,12 +254,18 @@ ssize_t read(int fd, void *buf, size_t size)
  //   char* buffer = (char*) buf;
     inj_msg->id = read_id;
     inj_msg->type = READ;
-    inj_msg->len = 0;
+    inj_msg->len = len;
     inj_msg->flag = 0;
     inj_msg->ret = 0;
     inj_msg->payload[0] = 0;
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
+    while (!read_ok);
+    memcpy(buf, io_payload, size);
+    read_ok = false;
+
+    if (io_payload != NULL)
+        free(io_payload);
 
     if (inj_msg != NULL)
         free(inj_msg);

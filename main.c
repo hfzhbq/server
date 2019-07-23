@@ -140,6 +140,31 @@ int recv_msg(int sockfd)
         }
         else if (cmd.type == READ) {
             printf("server recv read cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
+            if (cmd.len > 0) {
+                io_ack = malloc(sizeof(cmd) + cmd.len);
+                if (io_ack == NULL) {
+                    perror("ioserver malloc");
+                }
+
+                io_ack->type = ACK;
+                io_ack->id = 0;
+                io_ack->len = cmd.len;
+                io_ack->flag = 0;
+                memset(io_ack->payload, 0, cmd.len);
+                io_ack->ret = read(sock2fd, io_ack->payload, cmd.len);
+                if (io_ack->ret < 0) {
+                    perror("ioserver read");
+                }
+                int nsend = 0;
+                nsend = send(connfd, io_ack, sizeof(cmd) + cmd.len, 0);
+                if (nsend < 0) {
+                    perror("ioserver send");
+                }
+
+                if (io_ack != NULL) {
+                    free(io_ack);
+                }
+            }
         }
         else if (cmd.type == LSEEK) {
 
@@ -160,6 +185,9 @@ int recv_msg(int sockfd)
             io_ack->len = 0;
             io_ack->flag = 0;
             io_ack->ret = unlink(IOZONE_TEMP);
+            if (io_ack->ret < 0) {
+                perror("ioserver unlink");
+            }
             io_ack->payload[0] = 0;
 
             int nsend = 0;
