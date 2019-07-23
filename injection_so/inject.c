@@ -29,15 +29,16 @@ struct cmd_t {
     char payload[0];
 }__attribute__((packed));
 
-typedef enum {
-    OPEN,
+enum cmd_type {
+    OPEN = 11,
     CLOSE,
     LSEEK,
     WRITE,
     READ,
     UNLINK,
-    STAT
-} INJ_OP;
+    STAT,
+    ACK
+};
 
 //#define SERVER_ADDR "192.168.2.69"
 #define SERV_ADDR "127.0.0.1"
@@ -82,7 +83,7 @@ static void *cmd_recv_thread(void *arg)
             return 0;
         }
         else {
-            if (cmd.type == 10) {
+            if (cmd.type == ACK) {
                 //printf("inj ack %d", cmd.ret);
                 inj_ret = cmd.ret;
             }
@@ -196,7 +197,7 @@ int open64(const char *file, int flag, ...)
     }
 
     inj_msg->id = open_id;
-    inj_msg->type = 11;
+    inj_msg->type = OPEN;
     inj_msg->len = len;
     inj_msg->flag = flag;
     inj_msg->ret = 0;
@@ -234,7 +235,7 @@ ssize_t read(int fd, void *buf, size_t size)
 
  //   char* buffer = (char*) buf;
     inj_msg->id = read_id;
-    inj_msg->type = 13;
+    inj_msg->type = READ;
     inj_msg->len = 0;
     inj_msg->flag = 0;
     inj_msg->ret = 0;
@@ -262,7 +263,7 @@ ssize_t write(int fd, const void *buf, size_t size)
 
     char* buffer = (char*) buf;
     inj_msg->id = write_id;
-    inj_msg->type = 12;
+    inj_msg->type = WRITE;
     inj_msg->len = len;
     inj_msg->flag = 0;
     inj_msg->ret = 0;
@@ -293,7 +294,7 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
     }
 
     inj_msg->id = lseek_id;
-    inj_msg->type = 14;
+    inj_msg->type = LSEEK;
     inj_msg->len = len;
     inj_msg->flag = 0;
     inj_msg->ret = 0;
@@ -317,7 +318,7 @@ int unlink(const char *path)
     }
 
     inj_msg->id = unlink_id;
-    inj_msg->type = 15;
+    inj_msg->type = UNLINK;
     inj_msg->len = 0;
     inj_msg->flag = 0;
     inj_msg->ret = 0;

@@ -32,6 +32,17 @@ struct cmd_t {
     char payload[0];
 }__attribute__((packed));
 
+enum cmd_type {
+    OPEN = 11,
+    CLOSE,
+    LSEEK,
+    WRITE,
+    READ,
+    UNLINK,
+    STAT,
+    ACK
+};
+
 #define OPEN_LINE 20
 
 #define RECV_LINE 10
@@ -88,7 +99,7 @@ int recv_msg(int sockfd)
             return 0;
         }
 
-        if (cmd.type == 11) {
+        if (cmd.type == OPEN) {
             printf("server recv open cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n, open flag", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.flag);
             io_payload = malloc(cmd.len);
             if (io_payload == NULL) {
@@ -107,7 +118,7 @@ int recv_msg(int sockfd)
 
             sock2fd = open(IOZONE_TEMP, O_CREAT | O_RDWR, 0644);
         }
-        else if (cmd.type == 12) {
+        else if (cmd.type == WRITE) {
             printf("server recv write cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
             io_payload = malloc(cmd.len);
             if (io_payload == NULL) {
@@ -127,13 +138,13 @@ int recv_msg(int sockfd)
                 free(io_payload);
             }
         }
-        else if (cmd.type == 13) {
+        else if (cmd.type == READ) {
             printf("server recv read cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
         }
-        else if (cmd.type == 14) {
+        else if (cmd.type == LSEEK) {
 
         }
-        else if (cmd.type == 15) {
+        else if (cmd.type == UNLINK) {
             printf("server recv unlink cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
 
 //            write(pipefd[1], "s", 1); // send the content of argv[1] to the reader
@@ -144,7 +155,7 @@ int recv_msg(int sockfd)
             }
             memset(io_ack, 0, sizeof(cmd));
 
-            io_ack->type = 10;
+            io_ack->type = ACK;
             io_ack->id = 0;
             io_ack->len = 0;
             io_ack->flag = 0;
