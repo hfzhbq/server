@@ -2,7 +2,7 @@
 * To change this license header, choose License Headers in Project Properties. * To change this template file, choose Tools | Templates* and open the template in the editor.*/
 // LD_PRELOAD=./libinjection-so.so ./code-injection or export LD_PRELOAD=./libinjection-so.so
 #define _GNU_SOURCE
-#define HEAD_SIZE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,9 +52,43 @@ static uint32_t read_id = 0;
 static uint32_t lseek_id = 0;
 static uint32_t unlink_id = 0;
 
+pthread_t tid = -1;
+int flag = 0;
+int inj_ret = 0;
+
 static struct cmd_t* inj_msg = NULL;
 
 static struct sockaddr_in inj_servaddr;
+
+static void *cmd_recv_thread(void *arg)
+{
+    while(1) {
+
+        if (flag == 0) {
+            flag = 1;
+            printf("new thread is created");
+        }
+
+        struct cmd_t cmd;
+        ssize_t nrecv = 0;
+        memset(&cmd, 0, sizeof(cmd));
+
+        nrecv = recv(inj_sockfd, &cmd, sizeof(cmd), 0);
+        if (nrecv < 0) {
+            perror("inj recv error");
+            return -1;
+        }
+        else if (nrecv == 0) {
+            return 0;
+        }
+        else {
+            if (cmd.type == 10) {
+                //printf("inj ack %d", cmd.ret);
+                inj_ret = cmd.ret;
+            }
+        }
+    }
+}
 
 static void inj_stop(int signo)
 {
@@ -135,6 +169,12 @@ static int inj_socket_init()
     }
     printf("\nPRELOAD ok : inj_sockfd = %d\n", inj_sockfd);
 
+    int err = 0;
+    err = pthread_create(&tid, NULL, cmd_recv_thread, NULL);
+    if (err != 0) {
+        perror("phread create error");
+        return -1;
+    }
 //    signal(SIGINT, inj_stop);
 }
 
@@ -202,8 +242,6 @@ ssize_t read(int fd, void *buf, size_t size)
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
 
-    inj_read(inj_sockfd, buf, size);
-
     if (inj_msg != NULL)
         free(inj_msg);
 }
@@ -231,7 +269,7 @@ ssize_t write(int fd, const void *buf, size_t size)
     memset(inj_msg->payload, 0, len);
     memcpy(inj_msg->payload, buffer, len);
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
-    printf("");
+
     if (inj_msg != NULL)
         free(inj_msg);
 
@@ -267,8 +305,6 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
 
 int unlink(const char *path)
 {
-    int ret;
-
     if (inj_sockfd == -1) {
         inj_socket_init();
     }
@@ -288,13 +324,6 @@ int unlink(const char *path)
     inj_msg->payload[0] = 0;
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-    memset(inj_msg, 0, sizeof(struct cmd_t));
-    inj_read(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-    if (inj_msg->type == 10) {
-        ret = inj_msg->ret;
-//        printf("inj ack %d", ret);
-    }
-
 
     if (inj_msg != NULL)
         free(inj_msg);
@@ -302,7 +331,7 @@ int unlink(const char *path)
     char command[512] = {0};
     snprintf(command, sizeof(command), "rm -rf %s", path);
     system(command);
-    return ret;
+    return inj_ret;
 }
 
 
