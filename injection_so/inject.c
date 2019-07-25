@@ -25,8 +25,10 @@ struct cmd_t {
     uint8_t  type;  /* packet type */
     uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
     uint32_t len;   /* the length of payload */
-    int32_t flag;  /* flag of command */
-    int32_t ret;   /* return value of commnd */
+    uint32_t flag;  /* flag of command */
+    __off64_t offset; /* seek offset */
+    int whence;     /* seek whence */
+    int32_t ret;   /* return value of ack command */
     char payload[0];
 }__attribute__((packed));
 
@@ -38,7 +40,7 @@ enum cmd_type {
     READ,
     UNLINK,
     STAT,
-    ACK
+    ACK = 1
 };
 
 //#define SERV_ADDR "192.168.2.70"
@@ -53,11 +55,12 @@ static uint32_t write_id = 0;
 static uint32_t read_id = 0;
 static uint32_t lseek_id = 0;
 static uint32_t unlink_id = 0;
+static uint32_t close_id = 0;
 
-static char* io_payload = NULL;
+static char* inj_payload = NULL;
 
 pthread_t tid = -1;
-bool read_ok = false;
+volatile bool read_ok = false;
 int inj_ret = 0;
 
 static struct cmd_t* inj_msg = NULL;
@@ -93,7 +96,7 @@ static ssize_t inj_read(int sock_fd, void *buf, size_t size)
 {
     int nread = 0;
     int nleft = size;
-    unsigned char *ptr = (char *)buf;
+    char *ptr = (char *)buf;
 
     while (nleft > 0) {
 
@@ -121,31 +124,61 @@ static void *cmd_recv_thread(void *arg)
 
         memset(&cmd, 0, sizeof(cmd));
 
-        nrecv = inj_read(inj_sockfd, &cmd, sizeof(cmd));
-        //nrecv = recv(inj_sockfd, &cmd, sizeof(cmd), MSG_DONTWAIT);
+        //nrecv = inj_read(inj_sockfd, &cmd, sizeof(cmd));
+        nrecv = recv(inj_sockfd, &cmd, sizeof(cmd), 0);
         if (nrecv < 0) {
             perror("inj recv error");
             return -1;
         }
+/*
+        if (cmd.id == 17) {
+            printf("17 recv not in loop, ACK = %d\n", cmd.type);
+        }
+*/
+/*
         else if (nrecv == 0) {
             return 0;
         }
-        else {
+*/
+        if (nrecv > 0) {
             if (cmd.type == ACK) {
                 //printf("inj ack %d", cmd.ret);
+//                printf("ACK detect");
                 inj_ret = cmd.ret;
                 if (cmd.len > 0) {
-                    printf("inj recv read cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
-                    io_payload = malloc(cmd.len);
-                    if (io_payload == NULL) {
+//                    printf("inj recv ACK READ cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
+                    inj_payload = malloc(cmd.len);
+                    if (inj_payload == NULL) {
                         perror("inj malloc");
                     }
 
-                    memset(io_payload, 0, cmd.len);
-                    nrecv = inj_read(inj_sockfd, io_payload, cmd.len);
+                    memset(inj_payload, 0, cmd.len);
+
+                    nrecv = inj_read(inj_sockfd, inj_payload, cmd.len);
 /*
-                    if (io_payload != NULL) {
-                        free(io_payload);
+                    if (cmd.id == 16) {
+                        if (inj_payload != NULL) {
+                            printf("nrecv = %d, cmd.len = %d, payload = %x\n", nrecv, cmd.len, inj_payload[0]);
+                            int i;
+                            for (i = 0; i < 100; i++) {
+                                printf("%02x", inj_payload[i]);
+                            }
+                        }
+                    }
+
+                    if (cmd.id == 17) {
+                        if (inj_payload != NULL) {
+                            printf("nrecv = %d, cmd.len = %d, payload = %x\n", nrecv, cmd.len, inj_payload[0]);
+                            int i;
+                            for (i = 0; i < 100; i++) {
+                                printf("%02x", inj_payload[i]);
+                            }
+                        }
+                    }
+*/
+/*
+                    if (inj_payload != NULL) {
+                        free(inj_payload);
                     }
 */
                     if (nrecv == cmd.len) {
@@ -209,15 +242,15 @@ int open64(const char *file, int flag, ...)
     char* buf = "123456789abcdefg\n";
     int len = (int) (strlen(buf) + 1);
 
-    inj_msg = malloc(sizeof(struct cmd_t) + len);
+    inj_msg = calloc(1, sizeof(struct cmd_t) + len);
     if (inj_msg == NULL) {
-        perror("inj malloc");
+        perror("inj calloc");
     }
 
     inj_msg->id = open_id;
     inj_msg->type = OPEN;
     inj_msg->len = len;
-    inj_msg->flag = flag;
+    inj_msg->flag = flag;// | O_LARGEFILE;
     inj_msg->ret = 0;
     memset(inj_msg->payload, 0, (size_t) len);
     memcpy(inj_msg->payload, buf, (size_t) len);
@@ -236,6 +269,36 @@ int open64(const char *file, int flag, ...)
     return fd;
 }
 
+/*
+int close(int fd)
+{
+    if (inj_sockfd == -1) {
+        inj_socket_init();
+    }
+
+    close_id += 1;
+
+    inj_msg = calloc(1, sizeof(struct cmd_t));
+    if (inj_msg == NULL) {
+        perror("inj calloc");
+    }
+
+    inj_msg->id = close_id;
+    inj_msg->type = CLOSE;
+    inj_msg->len = 0;
+    inj_msg->flag = 0;
+    inj_msg->ret = 0;
+    inj_msg->payload[0] = 0;
+
+    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+
+    if (inj_msg != NULL)
+        free(inj_msg);
+
+    return 0;
+}
+*/
+
 
 ssize_t read(int fd, void *buf, size_t size)
 {
@@ -246,9 +309,9 @@ ssize_t read(int fd, void *buf, size_t size)
     read_id += 1;
     size_t len = size;
 
-    inj_msg = malloc(sizeof(struct cmd_t) + len);
+    inj_msg = calloc(1, sizeof(struct cmd_t) + len);
     if (inj_msg == NULL) {
-        perror("inj malloc");
+        perror("inj calloc");
     }
 
  //   char* buffer = (char*) buf;
@@ -260,15 +323,20 @@ ssize_t read(int fd, void *buf, size_t size)
     inj_msg->payload[0] = 0;
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
-    while (!read_ok);
-    memcpy(buf, io_payload, size);
+    while (!read_ok) {
+        usleep(400);
+    }
+    memcpy(buf, inj_payload, len);
+    //buf = inj_payload;
     read_ok = false;
 
-    if (io_payload != NULL)
-        free(io_payload);
+    if (inj_payload != NULL)
+        free(inj_payload);
 
     if (inj_msg != NULL)
         free(inj_msg);
+
+    return size;
 }
 
 ssize_t write(int fd, const void *buf, size_t size)
@@ -280,9 +348,9 @@ ssize_t write(int fd, const void *buf, size_t size)
     write_id += 1;
     size_t len = size;
 
-    inj_msg = malloc(sizeof(struct cmd_t) + len);
+    inj_msg = calloc(1, sizeof(struct cmd_t) + len);
     if (inj_msg == NULL) {
-        perror("inj malloc");
+        perror("inj calloc");
     }
 
     char* buffer = (char*) buf;
@@ -309,21 +377,24 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
     }
 
     lseek_id += 1;
-    char* buf = "lseek\n";
-    int len = (int) (strlen(buf));
 
-    inj_msg = malloc(sizeof(struct cmd_t) + len);
+    inj_msg = calloc(1, sizeof(struct cmd_t));
     if (inj_msg == NULL) {
-        perror("inj malloc");
+        perror("inj calloc");
     }
 
     inj_msg->id = lseek_id;
     inj_msg->type = LSEEK;
-    inj_msg->len = len;
+    inj_msg->whence = whence;
+    inj_msg->offset = offset;
+    inj_msg->len = 0;
     inj_msg->flag = 0;
-    inj_msg->ret = 0;
-    memset(inj_msg->payload, 0, (size_t) len);
-    memcpy(inj_msg->payload, buf, (size_t) len);
+    inj_msg->payload[0] = 0;
+
+    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+
+    if (inj_msg != NULL)
+        free(inj_msg);
 
     return offset;
 }
@@ -336,9 +407,9 @@ int unlink(const char *path)
 
     unlink_id += 1;
 
-    inj_msg = malloc(sizeof(struct cmd_t));
+    inj_msg = calloc(1, sizeof(struct cmd_t));
     if (inj_msg == NULL) {
-        perror("inj malloc");
+        perror("inj calloc");
     }
 
     inj_msg->id = unlink_id;
