@@ -31,6 +31,7 @@ struct cmd_t {
     __off64_t offset; /* seek offset */
     int whence;     /* seek whence */
     int32_t ret;   /* return value of ack command */
+    uint8_t again; /* indicate the command is sent again */
     char payload[0];
 }__attribute__((packed));
 
@@ -42,7 +43,9 @@ enum cmd_type {
     READ,
     UNLINK,
     STAT,
-    ACK = 1
+    READ_ACK = 1,
+    LSEEK_ACK,
+    UNLINK_ACK
 };
 
 #define OPEN_LINE 20
@@ -63,10 +66,8 @@ static char* io_payload = NULL;
 static struct cmd_t* io_ack = NULL;
 
 static uint32_t ack_read_id = 0;
+static uint32_t ack_lseek_id = 0;
 static uint32_t ack_unlink_id = 0;
-/*
-int pipefd[2] = {0};
-*/
 
 #define IOZONE_TEMP "./iozone.tmp"
 int sock2fd = -1;
@@ -87,7 +88,7 @@ int recv_handle(int sockfd)
     }
 }
 
-int recv_msg(int sockfd)
+int io_parse_cmd(int sockfd)
 {
     ssize_t nrecv = 0;
     while (1) {
@@ -105,11 +106,11 @@ int recv_msg(int sockfd)
 
         if (cmd.type == OPEN) {
             printf("server recv OPEN cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n, open flag = %8x\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.flag);
-            io_payload = malloc(cmd.len);
+            io_payload = calloc(1, cmd.len);
             if (io_payload == NULL) {
                 perror("ioserver malloc");
             }
-            memset(io_payload, 0, (size_t) cmd.len);
+ //           memset(io_payload, 0, (size_t) cmd.len);
             nrecv = recv(connfd, io_payload, cmd.len, 0);
             if (nrecv < 0) {
                 perror("ioserver recv");
@@ -135,11 +136,10 @@ int recv_msg(int sockfd)
         }
         else if (cmd.type == WRITE) {
             printf("server recv WRITE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
-            io_payload = malloc(cmd.len);
+            io_payload = calloc(1, cmd.len);
             if (io_payload == NULL) {
                 perror("ioserver malloc");
             }
-            memset(io_payload, 0, (size_t) cmd.len);
 
             nrecv = recv(connfd, io_payload, cmd.len, 0);
 
@@ -170,23 +170,26 @@ int recv_msg(int sockfd)
             }
         }
         else if (cmd.type == READ) {
-            printf("server recv READ cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
+            printf("server recv READ cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
             ack_read_id += 1;
             if (cmd.len > 0) {
-                io_ack = malloc(sizeof(cmd) + cmd.len);
+                io_ack = calloc(1, sizeof(cmd) + cmd.len);
                 if (io_ack == NULL) {
                     perror("ioserver malloc");
                 }
 
-                io_ack->type = ACK;
+                io_ack->type = READ_ACK;
                 io_ack->id = ack_read_id;
                 io_ack->len = cmd.len;
+/*
                 io_ack->flag = 0;
                 memset(io_ack->payload, 0, cmd.len);
+*/
 
                 io_ack->ret = read(sock2fd, io_ack->payload, cmd.len);
 
-                if (cmd.id == 16) {
+/*
+                if (cmd.id == 58) {
                     if (io_ack->payload != NULL) {
                         printf("nrecv = %d, cmd.len = %d, payload = %x\n", nrecv, cmd.len, io_ack->payload[0]);
                         int i;
@@ -200,7 +203,9 @@ int recv_msg(int sockfd)
                         }
                     }
                 }
-                if (cmd.id == 17) {
+*/
+/*
+                if (cmd.id == 59) {
                     if (io_ack->payload != NULL) {
                         printf("nrecv = %d, cmd.len = %d, payload = %x\n", nrecv, cmd.len, io_ack->payload[0]);
                         int i;
@@ -214,6 +219,7 @@ int recv_msg(int sockfd)
                         }
                     }
                 }
+*/
 
                 if (io_ack->ret < 0) {
                     perror("ioserver read");
@@ -231,24 +237,49 @@ int recv_msg(int sockfd)
         }
         else if (cmd.type == LSEEK) {
             printf("server recv LSEEK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, whence = %#x, offset = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.whence, cmd.offset);
-            lseek(sock2fd, cmd.offset, cmd.whence);
 
+            ack_lseek_id += 1;
+            io_ack = calloc(1, sizeof(cmd));
+            if (io_ack == NULL) {
+                perror("ioserver malloc");
+            }
+
+            io_ack->type = LSEEK_ACK;
+            io_ack->id = ack_lseek_id;
+            io_ack->ret = lseek(sock2fd, cmd.offset, cmd.whence);
+
+            if (io_ack->ret < 0) {
+                perror("ioserver lseek");
+            }
+            int nsend = 0;
+            nsend = send(connfd, io_ack, sizeof(cmd), 0);
+            if (nsend < 0) {
+                perror("ioserver send");
+            }
+
+            if (io_ack != NULL) {
+                free(io_ack);
+            }
         }
         else if (cmd.type == UNLINK) {
             printf("server recv UNLINK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
 
 //            write(pipefd[1], "s", 1); // send the content of argv[1] to the reader
             ack_unlink_id += 1;
-            io_ack = malloc(sizeof(cmd));
+            io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
                 perror("ioserver malloc");
             }
+/*
             memset(io_ack, 0, sizeof(cmd));
+*/
 
-            io_ack->type = ACK;
+            io_ack->type = UNLINK_ACK;
+/*
             io_ack->id = 0;
             io_ack->len = 0;
             io_ack->flag = 0;
+*/
 
 /*
             io_ack->ret = unlink(IOZONE_TEMP);
@@ -257,7 +288,9 @@ int recv_msg(int sockfd)
             }
 */
 
+/*
             io_ack->payload[0] = 0;
+*/
 
             int nsend = 0;
             nsend = send(connfd, io_ack, sizeof(cmd), 0);
@@ -268,7 +301,6 @@ int recv_msg(int sockfd)
             if (io_ack != NULL) {
                 free(io_ack);
             }
-
         }
     }
 }
@@ -279,10 +311,6 @@ void ioserver_stop(int signo)
     close(connfd);
     close(listenfd);
     close(sock2fd);
-/*
-    close(pipefd[0]);
-    close(pipefd[1]);
-*/
 
 /*
     if (io_payload != NULL)
@@ -298,44 +326,10 @@ void ioserver_stop(int signo)
     exit(0);
 }
 
-/*
-int send_msg(int sockfd)
-{
-
-    ssize_t nsend = 0;
-    char buf;
-    int ret = 0;
-    close(pipefd[1]);
-    ret = read(pipefd[0], &buf, 1);
-    if (ret > 0) {
-        printf("pipe get data");
-        struct cmd_t ack;
-        memset(&ack, 0, sizeof(ack));
-        ack.type = 10;
-        ack.id = 0;
-        ack.len = 0;
-        ack.flag = 0;
-        ack.ret = unlink(IOZONE_TEMP);
-        ack.payload[0] = 0;
-
-        int nsend = 0;
-        nsend = send(connfd, &ack, sizeof(ack), 0);
-        if (nsend < 0) {
-            perror("ioserver send");
-        }
-        ret = 0;
-    }
-}
-*/
-
 int main(int argc, char** argv)
 {
 
     struct sockaddr_in servaddr;
-
-/*
-    pipe(pipefd);
-*/
 
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("socket error");
@@ -370,31 +364,15 @@ int main(int argc, char** argv)
         pid1 = fork();
         if (pid1 == 0) {
             close(listenfd);
-            recv_msg(connfd);
-/*
-            while (1) {
-                send_msg(connfd);
-            }
-*/
+            io_parse_cmd(connfd);
+
             exit(0);
         }
         else if (pid1 < 0) {
             perror("fork");
         }
         else {
-            pid2 = fork();
-            if (pid2 == 0) {
-                close(listenfd);
-/*
-                close(pipefd[0]); // close the read-end of the pipe, I'm not going to use it
-*/
-                //recv_msg(connfd);
-                //recv_handle(connfd);
-                exit(0);
-            }
-            else if (pid2 < 0){
-                perror("fork");
-            }
+
         }
     }
 
