@@ -2,7 +2,8 @@
 * To change this license header, choose License Headers in Project Properties. * To change this template file, choose Tools | Templates* and open the template in the editor.*/
 // LD_PRELOAD=./libinjection-so.so ./code-injection or export LD_PRELOAD=./libinjection-so.so
 #define _GNU_SOURCE
-#undef INJ_DEBUG
+//#undef INJ_DEBUG
+#define INJ_DEBUG
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,6 +36,7 @@ struct cmd_t {
 
 enum cmd_type {
     OPEN = 11,
+    CREAT,
     CLOSE,
     LSEEK,
     WRITE,
@@ -54,6 +56,7 @@ enum cmd_type {
 static int inj_sockfd = -1;
 
 static uint32_t open_id = 0;
+static uint32_t creat_id = 0;
 static uint32_t write_id = 0;
 static uint32_t read_id = 0;
 static uint32_t lseek_id = 0;
@@ -262,6 +265,38 @@ int open64(const char *file, int flag, ...)
     return fd;
 }
 
+int creat64 (const char *file, mode_t mode)
+{
+    if (inj_sockfd == -1) {
+        inj_socket_init();
+    }
+
+    creat_id += 1;
+
+    inj_msg = calloc(1, sizeof(struct cmd_t));
+    if (inj_msg == NULL) {
+        perror("inj calloc");
+    }
+
+    inj_msg->id = creat_id;
+    inj_msg->type = CREAT;
+    inj_msg->len = 0;
+    inj_msg->flag = mode;// | O_LARGEFILE;
+    inj_msg->ret = 0;
+    inj_msg->payload[0] = 0;
+
+    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+
+    if (inj_msg != NULL)
+        free(inj_msg);
+
+    /* Using a fake file to let iozone run happily */
+    int fd = -1;
+    //creat() is equivalent to open() with flags equal to O_CREAT|O_WRONLY|O_TRUNC.
+    fd = creat(file, mode | O_LARGEFILE);
+
+    return fd;
+}
 
 /*
 int close(int fd)
@@ -330,9 +365,10 @@ ssize_t read(int fd, void *buf, size_t size)
          * READ cmd again. In order to figure out when this case occurs, add
          * flag to indicate this case happened and the READ cmd has been send again
          */
-        if (cnt == 100) {
-            inj_msg->again = 1;
+        if (cnt > 100) {
+            inj_msg->again += 1;
             inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
+            cnt = 0;
         }
         cnt += 1;
     }
@@ -415,9 +451,10 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
          * READ cmd again. In order to figure out when this case occurs, add
          * flag to indicate this case happened and the READ cmd has been send again
          */
-        if (cnt == 100) {
-            inj_msg->again = 1;
+        if (cnt > 100) {
+            inj_msg->again += 1;
             inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+            cnt = 0;
         }
         cnt += 1;
     }
