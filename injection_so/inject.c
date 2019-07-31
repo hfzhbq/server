@@ -2,8 +2,8 @@
 * To change this license header, choose License Headers in Project Properties. * To change this template file, choose Tools | Templates* and open the template in the editor.*/
 // LD_PRELOAD=./libinjection-so.so ./code-injection or export LD_PRELOAD=./libinjection-so.so
 #define _GNU_SOURCE
-//#undef INJ_DEBUG
-#define INJ_DEBUG
+#undef INJ_DEBUG
+//#define INJ_DEBUG
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,6 +44,7 @@ enum cmd_type {
     UNLINK,
     STAT,
     READ_ACK = 1,
+    WRITE_ACK,
     LSEEK_ACK,
     UNLINK_ACK
 };
@@ -68,6 +69,7 @@ static char* inj_payload = NULL;
 pthread_t tid = -1;
 volatile int read_ok = 0;
 volatile int lseek_ok = 0;
+volatile int write_ok = 0;
 int inj_ret = 0;
 
 static struct cmd_t* inj_msg = NULL;
@@ -150,19 +152,8 @@ static void *cmd_parse_thread(void *arg)
                         perror("inj malloc");
                     }
 
-/*
-                    memset(inj_payload, 0, cmd.len);
-*/
-
                     nrecv = inj_read(inj_sockfd, inj_payload, cmd.len);
- //                   printf("inj_read payload\n");
- //                   printf("nrecv = %d\n", nrecv);
 
-/*
-                    if (inj_payload != NULL) {
-                        free(inj_payload);
-                    }
-*/
 
                     if (nrecv == cmd.len) {
                         read_ok = 1;
@@ -170,7 +161,6 @@ static void *cmd_parse_thread(void *arg)
                     else {
                         printf("nrecv = %d\n", nrecv);
                     }
-//                    printf("read_ok = %d\n", read_ok);
                 }
             }
             else if (cmd.type == LSEEK_ACK) {
@@ -179,7 +169,13 @@ static void *cmd_parse_thread(void *arg)
                 printf("inj recv LSEEK_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
 #endif
                 lseek_ok = 1;
-//                    printf("read_ok = %d\n", read_ok);
+            }
+            else if (cmd.type == WRITE_ACK) {
+                inj_ret = cmd.ret;
+#ifdef INJ_DEBUG
+                printf("inj recv WRITE_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
+#endif
+                write_ok = 1;
             }
         }
     }
@@ -391,6 +387,7 @@ ssize_t write(int fd, const void *buf, size_t size)
         inj_socket_init();
     }
 
+    int cnt = 0;
     write_id += 1;
     size_t len = size;
 
@@ -408,6 +405,29 @@ ssize_t write(int fd, const void *buf, size_t size)
     memset(inj_msg->payload, 0, len);
     memcpy(inj_msg->payload, buffer, len);
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
+
+    while (1) {
+        usleep(200);
+
+        if (write_ok == 1) {
+            break;
+        }
+        /**
+         * Sometimes, we send READ cmd to server, but server won't recv or recv
+         * a error cmd mesg for some reasons, in this case, we have to add send
+         * READ cmd again. In order to figure out when this case occurs, add
+         * flag to indicate this case happened and the READ cmd has been send again
+         */
+        if (cnt > 100) {
+            inj_msg->again += 1;
+            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
+            cnt = 0;
+        }
+        cnt += 1;
+    }
+
+    write_ok = 0;
+    cnt = 0;
 
     if (inj_msg != NULL)
         free(inj_msg);
