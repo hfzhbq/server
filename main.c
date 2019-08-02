@@ -211,7 +211,7 @@ int io_parse_cmd(int sockfd)
                     free(io_ack);
                 }
             }
-//            fputs(payload, stdout);
+
             if (io_payload != NULL) {
                 free(io_payload);
             }
@@ -273,7 +273,7 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == UNLINK) {
-            printf("server recv UNLINK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
+            printf("server recv UNLINK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
 
             ack_unlink_id += 1;
             io_ack = calloc(1, sizeof(cmd));
@@ -282,8 +282,9 @@ int io_parse_cmd(int sockfd)
             }
 
             io_ack->type = UNLINK_ACK;
-
+            io_ack->id = ack_unlink_id;
             io_ack->ret = unlink(IOZONE_TEMP);
+
             if (io_ack->ret < 0) {
                 perror("ioserver unlink");
             }

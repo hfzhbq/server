@@ -1,7 +1,7 @@
 /*
  * File:   injector.c
  * Author: Baiqiang Hong
- * Usage :  LD_PRELOAD=/tmp/20190708/NetBeansProjects/info_server/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i 0 -i 1 -i 2
+ * Usage : LD_PRELOAD=/tmp/20190708/NetBeansProjects/info_server/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i 0 -i 1 -i 2
  */
 
 #define _GNU_SOURCE
@@ -42,6 +42,7 @@ volatile int lseek_ok = 0;
 volatile int write_ok = 0;
 volatile int open_ok = 0;
 volatile int creat_ok = 0;
+volatile int unlink_ok = 0;
 
 int inj_ret = 0;
 
@@ -172,6 +173,15 @@ static void *cmd_parse_thread(void *arg)
                 printf("inj recv CREAT_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
 #endif
                 creat_ok = 1;
+            }
+            else if (cmd.type == UNLINK_ACK) {
+                inj_ret = byteswap32(cmd.ret);
+                int len = byteswap32(cmd.len);
+                int id = byteswap32(cmd.id);
+#ifdef INJ_DEBUG
+                printf("inj recv UNLINK_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+#endif
+                unlink_ok = 1;
             }
         }
     }
@@ -569,6 +579,7 @@ int unlink(const char *path)
         inj_socket_init();
     }
 
+    int cnt = 0;
     unlink_id += 1;
 
     inj_msg = calloc(1, sizeof(struct cmd_t));
@@ -584,6 +595,39 @@ int unlink(const char *path)
     inj_msg->payload[0] = 0;
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+
+    /**
+     * Sometimes, we send cmd to server, but server won't recv or recv
+     * a error cmd mesg for some reasons, in this case, we have to add send
+     * cmd again. In order to figure out when this case occurs, add
+     * flag to indicate this case happened and the READ cmd has been send again
+     */
+
+    while (1) {
+        usleep(200);
+
+        if (unlink_ok == 1) {
+            break;
+        }
+/**
+ * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
+ * it will issue data verification error. In different system, the speed of system
+ * is also different, so the problem severity is different.
+ */
+#ifdef SOLARIS
+        if (cnt > 800) {
+#else
+        if (cnt > 500) {
+#endif
+            inj_msg->again += 1;
+            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+            cnt = 0;
+        }
+        cnt += 1;
+    }
+
+    unlink_ok = 0;
+    cnt = 0;
 
     if (inj_msg != NULL)
         free(inj_msg);
