@@ -9,19 +9,19 @@ CND_DISTDIR=dist
 # Debug configuration
 CND_PLATFORM_Debug=GNU-Linux
 CND_ARTIFACT_DIR_Debug=dist/Debug/GNU-Linux
-CND_ARTIFACT_NAME_Debug=info_server
-CND_ARTIFACT_PATH_Debug=dist/Debug/GNU-Linux/info_server
+CND_ARTIFACT_NAME_Debug=ioserver
+CND_ARTIFACT_PATH_Debug=dist/Debug/GNU-Linux/ioserver
 CND_PACKAGE_DIR_Debug=dist/Debug/GNU-Linux/package
-CND_PACKAGE_NAME_Debug=infoserver.tar
-CND_PACKAGE_PATH_Debug=dist/Debug/GNU-Linux/package/infoserver.tar
+CND_PACKAGE_NAME_Debug=ioserver.tar
+CND_PACKAGE_PATH_Debug=dist/Debug/GNU-Linux/package/ioserver.tar
 # Release configuration
 CND_PLATFORM_Release=GNU-Linux
 CND_ARTIFACT_DIR_Release=dist/Release/GNU-Linux
-CND_ARTIFACT_NAME_Release=info_server
-CND_ARTIFACT_PATH_Release=dist/Release/GNU-Linux/info_server
+CND_ARTIFACT_NAME_Release=ioserver
+CND_ARTIFACT_PATH_Release=dist/Release/GNU-Linux/ioserver
 CND_PACKAGE_DIR_Release=dist/Release/GNU-Linux/package
-CND_PACKAGE_NAME_Release=infoserver.tar
-CND_PACKAGE_PATH_Release=dist/Release/GNU-Linux/package/infoserver.tar
+CND_PACKAGE_NAME_Release=ioserver.tar
+CND_PACKAGE_PATH_Release=dist/Release/GNU-Linux/package/ioserver.tar
 #
 # include compiler specific variables
 #

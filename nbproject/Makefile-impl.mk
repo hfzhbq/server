@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=info_server
+PROJECTNAME=ioserver
 
 # Active Configuration
 DEFAULTCONF=Debug
