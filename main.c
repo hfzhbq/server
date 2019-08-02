@@ -1,7 +1,7 @@
 /*
  * File:   injector.c
  * Author: Baiqiang Hong
- *
+ * Usage: ./ioserver
  */
 #define _GNU_SOURCE
 //#define SOLARIS
@@ -48,6 +48,8 @@ enum cmd_type {
     STAT,
     READ_ACK = 1,
     WRITE_ACK,
+    OPEN_ACK,
+    CREAT_ACK,
     LSEEK_ACK,
     UNLINK_ACK
 };
@@ -63,6 +65,8 @@ static struct cmd_t* io_ack = NULL;
 
 static uint32_t ack_read_id = 0;
 static uint32_t ack_write_id = 0;
+static uint32_t ack_open_id = 0;
+static uint32_t ack_creat_id = 0;
 static uint32_t ack_lseek_id = 0;
 static uint32_t ack_unlink_id = 0;
 
@@ -110,7 +114,9 @@ int io_parse_cmd(int sockfd)
         }
 
         if (cmd.type == OPEN) {
-            printf("server recv OPEN cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n, open flag = %8x\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.flag);
+            printf("server recv OPEN cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n, open flag = %8x, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.flag, cmd.again);
+            ack_open_id += 1;
+/*
             io_payload = calloc(1, cmd.len);
             if (io_payload == NULL) {
                 perror("ioserver malloc");
@@ -124,13 +130,31 @@ int io_parse_cmd(int sockfd)
             if (io_payload != NULL) {
                 free(io_payload);
             }
+*/
+            io_ack = calloc(1, sizeof(cmd));
+            if (io_ack == NULL) {
+                perror("ioserver calloc");
+            }
+
+            io_ack->type = OPEN_ACK;
+            io_ack->id = ack_open_id;
             sock2fd = open64(IOZONE_TEMP, cmd.flag, 0644);
 
             if (sock2fd > 0) {
-                printf("open success\n");
+                printf("open64 success\n");
             }
             else if(sock2fd < 0) {
                 perror("ioserver open");
+            }
+
+            int nsend = 0;
+            nsend = send(connfd, io_ack, sizeof(cmd), 0);
+            if (nsend < 0) {
+                perror("ioserver send");
+            }
+
+            if (io_ack != NULL) {
+                free(io_ack);
             }
         }
 /*
@@ -145,7 +169,7 @@ int io_parse_cmd(int sockfd)
             ack_write_id += 1;
             io_payload = calloc(1, cmd.len);
             if (io_payload == NULL) {
-                perror("ioserver malloc");
+                perror("ioserver calloc");
             }
 
 /*
@@ -166,7 +190,7 @@ int io_parse_cmd(int sockfd)
                 printf("nrecv : %d\n", nrecv);
                 io_ack = calloc(1, sizeof(cmd));
                 if (io_ack == NULL) {
-                    perror("ioserver malloc");
+                    perror("ioserver calloc");
                 }
 
                 io_ack->type = WRITE_ACK;
@@ -198,7 +222,7 @@ int io_parse_cmd(int sockfd)
             if (cmd.len > 0) {
                 io_ack = calloc(1, sizeof(cmd) + cmd.len);
                 if (io_ack == NULL) {
-                    perror("ioserver malloc");
+                    perror("ioserver calloc");
                 }
 
                 io_ack->type = READ_ACK;
@@ -227,7 +251,7 @@ int io_parse_cmd(int sockfd)
             ack_lseek_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
-                perror("ioserver malloc");
+                perror("ioserver calloc");
             }
 
             io_ack->type = LSEEK_ACK;
@@ -254,7 +278,7 @@ int io_parse_cmd(int sockfd)
             ack_unlink_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
-                perror("ioserver malloc");
+                perror("ioserver calloc");
             }
 
             io_ack->type = UNLINK_ACK;
@@ -275,14 +299,15 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == CREAT) {
-            printf("server recv CREAT cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
-
+            printf("server recv CREAT cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+            ack_creat_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
-                perror("ioserver malloc");
+                perror("ioserver calloc");
             }
 
-            io_ack->type = CREAT;
+            io_ack->type = CREAT_ACK;
+            io_ack->id = ack_creat_id;
 
             sock2fd = creat(IOZONE_TEMP, cmd.flag);
             if (sock2fd > 0) {
@@ -290,6 +315,16 @@ int io_parse_cmd(int sockfd)
             }
             else if(sock2fd < 0) {
                 perror("ioserver creat");
+            }
+
+            int nsend = 0;
+            nsend = send(connfd, io_ack, sizeof(cmd), 0);
+            if (nsend < 0) {
+                perror("ioserver send");
+            }
+
+            if (io_ack != NULL) {
+                free(io_ack);
             }
         }
     }

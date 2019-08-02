@@ -40,6 +40,9 @@ pthread_t tid = -1;
 volatile int read_ok = 0;
 volatile int lseek_ok = 0;
 volatile int write_ok = 0;
+volatile int open_ok = 0;
+volatile int creat_ok = 0;
+
 int inj_ret = 0;
 
 static struct cmd_t* inj_msg = NULL;
@@ -103,7 +106,6 @@ static void *cmd_parse_thread(void *arg)
 
         memset(&cmd, 0, sizeof(cmd));
 
-        //nrecv = inj_read(inj_sockfd, &cmd, sizeof(cmd));
         nrecv = recv(inj_sockfd, &cmd, sizeof(cmd), 0);
         if (nrecv < 0) {
             perror("inj recv error");
@@ -153,6 +155,24 @@ static void *cmd_parse_thread(void *arg)
 #endif
                 write_ok = 1;
             }
+            else if (cmd.type == OPEN_ACK) {
+                inj_ret = byteswap32(cmd.ret);
+                int len = byteswap32(cmd.len);
+                int id = byteswap32(cmd.id);
+#ifdef INJ_DEBUG
+                printf("inj recv OPEN_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+#endif
+                open_ok = 1;
+            }
+            else if (cmd.type == CREAT_ACK) {
+                inj_ret = byteswap32(cmd.ret);
+                int len = byteswap32(cmd.len);
+                int id = byteswap32(cmd.id);
+#ifdef INJ_DEBUG
+                printf("inj recv CREAT_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+#endif
+                creat_ok = 1;
+            }
         }
     }
 }
@@ -194,35 +214,63 @@ static int inj_socket_init()
         perror("phread create error");
         return -1;
     }
-//    signal(SIGINT, inj_stop);
 }
 
 
 int open64(const char *file, int flag, ...)
 {
- //   printf("open64 inj");
+
     if (inj_sockfd == -1) {
         inj_socket_init();
     }
 
+    int cnt = 0;
     open_id += 1;
-    char* buf = "123456789abcdefg\n";
-    int len = (int) (strlen(buf) + 1);
 
-    inj_msg = calloc(1, sizeof(struct cmd_t) + len);
+    inj_msg = calloc(1, sizeof(struct cmd_t));
     if (inj_msg == NULL) {
         perror("inj calloc");
     }
 
     inj_msg->id = byteswap32(open_id);
     inj_msg->type = OPEN;
-    inj_msg->len = byteswap32(len);
-    inj_msg->flag = byteswap32(flag);// | O_LARGEFILE;
-    inj_msg->ret = 0;
-    memset(inj_msg->payload, 0, (size_t) len);
-    memcpy(inj_msg->payload, buf, (size_t) len);
 
-    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
+    inj_msg->flag = byteswap32(flag);
+
+    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+
+/**
+ * Sometimes, we send cmd to server, but server won't recv or recv
+ * a error cmd mesg for some reasons, in this case, we have to add send
+ * cmd again. In order to figure out when this case occurs, add
+ * flag to indicate this case happened and the READ cmd has been send again
+ */
+
+    while (1) {
+        usleep(200);
+
+        if (open_ok == 1) {
+            break;
+        }
+/**
+ * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
+ * it will issue data verification error. In different system, the speed of system
+ * is also different, so the problem severity is different.
+ */
+#ifdef SOLARIS
+        if (cnt > 800) {
+#else
+        if (cnt > 300) {
+#endif
+            inj_msg->again += 1;
+            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+            cnt = 0;
+        }
+        cnt += 1;
+    }
+
+    open_ok = 0;
+    cnt = 0;
 
     if (inj_msg != NULL)
         free(inj_msg);
@@ -243,6 +291,7 @@ int creat64 (const char *file, mode_t mode)
         inj_socket_init();
     }
 
+    int cnt = 0;
     creat_id += 1;
 
     inj_msg = calloc(1, sizeof(struct cmd_t));
@@ -259,12 +308,48 @@ int creat64 (const char *file, mode_t mode)
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
+/**
+ * Sometimes, we send cmd to server, but server won't recv or recv
+ * a error cmd mesg for some reasons, in this case, we have to add send
+ * cmd again. In order to figure out when this case occurs, add
+ * flag to indicate this case happened and the READ cmd has been send again
+ */
+
+    while (1) {
+        usleep(200);
+
+        if (creat_ok == 1) {
+            break;
+        }
+/**
+ * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
+ * it will issue data verification error. In different system, the speed of system
+ * is also different, so the problem severity is different.
+ */
+#ifdef SOLARIS
+        if (cnt > 800) {
+#else
+        if (cnt > 300) {
+#endif
+            inj_msg->again += 1;
+            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+            cnt = 0;
+        }
+        cnt += 1;
+    }
+
+    creat_ok = 0;
+    cnt = 0;
+
     if (inj_msg != NULL)
         free(inj_msg);
 
-    /* Using a fake file to let iozone run happily */
+    /* Using a fake file to let local iozone run happily */
     int fd = -1;
-    //creat() is equivalent to open() with flags equal to O_CREAT|O_WRONLY|O_TRUNC.
+    /**
+     * creat() is equivalent to open() with flags equal to
+     * O_CREAT | O_WRONLY | O_TRUNC.
+     */
     fd = creat(file, mode | O_LARGEFILE);
 
     return fd;

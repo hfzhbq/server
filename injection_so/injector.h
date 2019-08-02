@@ -51,6 +51,8 @@ enum cmd_type {
     STAT,
     READ_ACK = 1,
     WRITE_ACK,
+    OPEN_ACK,
+    CREAT_ACK,
     LSEEK_ACK,
     UNLINK_ACK
 };
