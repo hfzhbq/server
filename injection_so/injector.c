@@ -1,9 +1,9 @@
 /*
  * File:   injector.c
  * Author: Baiqiang Hong
- *
+ * Usage :  LD_PRELOAD=/tmp/20190708/NetBeansProjects/info_server/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i 0 -i 1 -i 2
  */
-// LD_PRELOAD=./libinjection-so.so ./code-injection or export LD_PRELOAD=./libinjection-so.so
+
 #define _GNU_SOURCE
 
 #include <stdio.h>
