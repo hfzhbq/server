@@ -1,16 +1,11 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
-/*
- * File:   main.c
- * Author: root
+ * File:   injector.c
+ * Author: Baiqiang Hong
  *
- * Created on July 3, 2019, 9:32 PM
  */
 #define _GNU_SOURCE
+//#define SOLARIS
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -28,7 +23,11 @@ struct cmd_t {
     uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
     uint32_t len;   /* the length of payload */
     uint32_t flag;  /* flag of command */
+#ifdef SOLARIS
+    off64_t offset; /* seek offset */
+#else
     __off64_t offset; /* seek offset */
+#endif
     int whence;     /* seek whence */
     int32_t ret;   /* return value of ack command */
     uint8_t again; /* indicate the command is sent again */
@@ -63,7 +62,7 @@ static char sendbuff[SEND_LINE];
 int listenfd = -1;
 int connfd = -1;
 pid_t pid1 = -1;
-pid_t pid2 = -1;
+
 static char* io_payload = NULL;
 static struct cmd_t* io_ack = NULL;
 
@@ -155,11 +154,13 @@ int io_parse_cmd(int sockfd)
                 perror("ioserver open");
             }
         }
+/*
         else if (cmd.type == CLOSE) {
             printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
 
             close(sock2fd);
         }
+*/
         else if (cmd.type == WRITE) {
             printf("server recv WRITE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
             ack_write_id += 1;
@@ -257,6 +258,7 @@ int io_parse_cmd(int sockfd)
             if (io_ack->ret < 0) {
                 perror("ioserver lseek");
             }
+
             int nsend = 0;
             nsend = send(connfd, io_ack, sizeof(cmd), 0);
             if (nsend < 0) {
@@ -327,11 +329,10 @@ void ioserver_stop(int signo)
 */
 
     if (pid1 > 0) {
+        unlink(IOZONE_TEMP);
         waitpid(pid1, NULL, 0);
     }
-    else if (pid2 > 0) {
-        waitpid(pid2, NULL, 0);
-    }
+
     exit(0);
 }
 

@@ -1,18 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configurationDescriptor version="100">
   <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
-    <logicalFolder name="HeaderFiles"
-                   displayName="Header Files"
-                   projectFiles="true">
-    </logicalFolder>
-    <logicalFolder name="ResourceFiles"
-                   displayName="Resource Files"
-                   projectFiles="true">
-    </logicalFolder>
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
-      <itemPath>inject.c</itemPath>
+      <logicalFolder name="f1" displayName="common" projectFiles="true">
+        <itemPath>common/bitops.h</itemPath>
+      </logicalFolder>
+      <itemPath>injector.c</itemPath>
+      <itemPath>injector.h</itemPath>
     </logicalFolder>
     <logicalFolder name="TestFiles"
                    displayName="Test Files"
@@ -35,8 +31,18 @@
         <rebuildPropChanged>false</rebuildPropChanged>
       </toolsSet>
       <compileType>
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <commandLine>-g</commandLine>
+        </cTool>
       </compileType>
-      <item path="inject.c" ex="false" tool="0" flavor2="0">
+      <item path="common/bitops.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="injector.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="injector.h" ex="false" tool="3" flavor2="0">
       </item>
     </conf>
     <conf name="Release" type="2">
@@ -48,6 +54,7 @@
       <compileType>
         <cTool>
           <developmentMode>5</developmentMode>
+          <commandLine>-g</commandLine>
         </cTool>
         <ccTool>
           <developmentMode>5</developmentMode>
@@ -59,7 +66,11 @@
           <developmentMode>5</developmentMode>
         </asmTool>
       </compileType>
-      <item path="inject.c" ex="false" tool="0" flavor2="0">
+      <item path="common/bitops.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="injector.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="injector.h" ex="false" tool="3" flavor2="0">
       </item>
     </conf>
   </confs>
