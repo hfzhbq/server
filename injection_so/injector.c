@@ -117,7 +117,7 @@ static void *cmd_parse_thread(void *arg)
                 int id = byteswap32(cmd.id);
                 if (len > 0) {
 #ifdef INJ_DEBUG
-                    printf("inj recv ACK READ cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+                    printf("inj recv READ ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
 #endif
                     inj_payload = calloc(1, len);
                     if (inj_payload == NULL) {

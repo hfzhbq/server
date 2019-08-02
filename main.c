@@ -17,47 +17,9 @@
 #include <string.h>
 #include <signal.h>
 #include <fcntl.h>
-
-struct cmd_t {
-    uint8_t  type;  /* packet type */
-    uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
-    uint32_t len;   /* the length of payload */
-    uint32_t flag;  /* flag of command */
-#ifdef SOLARIS
-    off64_t offset; /* seek offset */
-#else
-    __off64_t offset; /* seek offset */
-#endif
-    int whence;     /* seek whence */
-    int32_t ret;   /* return value of ack command */
-    uint8_t again; /* indicate the command is sent again */
-    char payload[0];
-}__attribute__((packed));
-
-enum cmd_type {
-    OPEN = 11,
-    CREAT,
-    CLOSE,
-    LSEEK,
-    WRITE,
-    READ,
-    UNLINK,
-    STAT,
-    READ_ACK = 1,
-    WRITE_ACK,
-    LSEEK_ACK,
-    UNLINK_ACK
-};
-
-#define OPEN_LINE 20
-
-#define RECV_LINE 10
-#define SEND_LINE 10
+#include "injection_so/injector.h"
 
 #define	SA	struct sockaddr
-
-static char recvbuff[RECV_LINE];
-static char sendbuff[SEND_LINE];
 
 int listenfd = -1;
 int connfd = -1;
@@ -97,22 +59,6 @@ static ssize_t inj_read(int sock_fd, void *buf, size_t size)
     }
 
     return size - nleft;
-}
-
-int recv_handle(int sockfd)
-{
-    ssize_t nrecv = 0;
-    while (1) {
-
-        nrecv = recv(sockfd, recvbuff, sizeof(recvbuff), MSG_DONTWAIT);
-        if (nrecv > 0) {
-//            printf("nrecv : %d\n", nrecv);
-        }
-        else if (nrecv < 0) {
-//            perror("recv error");
-
-        }
-    }
 }
 
 int io_parse_cmd(int sockfd)
@@ -353,10 +299,6 @@ int main(int argc, char** argv)
     bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
 
     listen(listenfd, SOMAXCONN);
-
-    bzero(recvbuff, RECV_LINE);
-
-    memset(sendbuff, 'm', sizeof(sendbuff));
 
     signal(SIGINT, ioserver_stop);
 
