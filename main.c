@@ -246,7 +246,7 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == LSEEK) {
-            printf("server recv LSEEK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, whence = %#x, offset = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.whence, cmd.offset, cmd.again);
+            printf("server recv LSEEK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, whence = %#x, offset = %x, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.whence, cmd.offset, cmd.again);
 
             ack_lseek_id += 1;
             io_ack = calloc(1, sizeof(cmd));
@@ -256,11 +256,13 @@ int io_parse_cmd(int sockfd)
 
             io_ack->type = LSEEK_ACK;
             io_ack->id = ack_lseek_id;
-            io_ack->ret = lseek(sock2fd, cmd.offset, cmd.whence);
+            io_ack->offset = lseek(sock2fd, cmd.offset, cmd.whence);
 
+/*
             if (io_ack->ret < 0) {
                 perror("ioserver lseek");
             }
+*/
 
             int nsend = 0;
             nsend = send(connfd, io_ack, sizeof(cmd), 0);

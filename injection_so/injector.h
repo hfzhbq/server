@@ -8,7 +8,7 @@
 
 #define IOZONE_TEMP "./iozone.tmp"
 
-#define SOLARIS
+//#define SOLARIS
 //#define DEBUG
 
 #define SERV_PORT 9090

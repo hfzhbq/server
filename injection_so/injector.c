@@ -44,7 +44,8 @@ volatile int open_ok = 0;
 volatile int creat_ok = 0;
 volatile int unlink_ok = 0;
 
-int inj_ret = 0;
+volatile int inj_ret = 0;
+volatile __off64_t lseek64_ret = 0;
 
 static struct cmd_t* inj_msg = NULL;
 
@@ -139,11 +140,11 @@ static void *cmd_parse_thread(void *arg)
                 }
             }
             else if (cmd.type == LSEEK_ACK) {
-                inj_ret = byteswap32(cmd.ret);
+                lseek64_ret = byteswap64(cmd.offset);
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
 #ifdef INJ_DEBUG
-                printf("inj recv LSEEK_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+                printf("inj recv LSEEK_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, ret = %x\n", cmd.type, id, len, sizeof(cmd), lseek64_ret);
 #endif
                 lseek_ok = 1;
             }
@@ -520,8 +521,11 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
     if (inj_sockfd == -1) {
         inj_socket_init();
     }
+
     int cnt = 0;
     lseek_id += 1;
+    lseek64_ret = 0;
+
 
     inj_msg = calloc(1, sizeof(struct cmd_t));
     if (inj_msg == NULL) {
@@ -531,7 +535,7 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
     inj_msg->id = byteswap32(lseek_id);
     inj_msg->type = LSEEK;
     inj_msg->whence = byteswap32(whence);
-    inj_msg->offset = byteswap32(offset);
+    inj_msg->offset = byteswap64(offset);
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
@@ -570,7 +574,7 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
     if (inj_msg != NULL)
         free(inj_msg);
 
-    return offset;
+    return lseek64_ret;
 }
 
 int unlink(const char *path)
