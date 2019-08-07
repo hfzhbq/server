@@ -15,7 +15,7 @@
 
 #ifdef SOLARIS
 #define FLIP_ENDIAN
-#define SERV_ADDR "192.168.2.86"
+#define SERV_ADDR "192.168.2.33"
 #else
 #define SERV_ADDR "127.0.0.1"
 #endif
@@ -48,13 +48,16 @@ enum cmd_type {
     WRITE,
     READ,
     UNLINK,
+    FSYNC,
     STAT,
     READ_ACK = 1,
     WRITE_ACK,
     OPEN_ACK,
     CREAT_ACK,
+    CLOSE_ACK,
     LSEEK_ACK,
-    UNLINK_ACK
+    UNLINK_ACK,
+    FSYNC_ACK
 };
 
 #endif

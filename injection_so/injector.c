@@ -1,7 +1,7 @@
 /*
  * File:   injector.c
  * Author: Baiqiang Hong
- * Usage : LD_PRELOAD=/tmp/20190708/NetBeansProjects/info_server/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i 0 -i 1 -i 2
+ * Usage : LD_PRELOAD=/tmp/20190708/NetBeansProjects/info_server/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i0 -i1 -i2 -i3 -i4 -i5
  */
 
 #define _GNU_SOURCE
@@ -32,6 +32,7 @@ static uint32_t write_id = 0;
 static uint32_t read_id = 0;
 static uint32_t lseek_id = 0;
 static uint32_t unlink_id = 0;
+static uint32_t fsync_id = 0;
 static uint32_t close_id = 0;
 
 static char* inj_payload = NULL;
@@ -43,6 +44,8 @@ volatile int write_ok = 0;
 volatile int open_ok = 0;
 volatile int creat_ok = 0;
 volatile int unlink_ok = 0;
+volatile int fsync_ok = 0;
+volatile int close_ok = 0;
 
 volatile int inj_ret = 0;
 volatile __off64_t lseek64_ret = 0;
@@ -184,6 +187,24 @@ static void *cmd_parse_thread(void *arg)
 #endif
                 unlink_ok = 1;
             }
+            else if (cmd.type == FSYNC_ACK) {
+                inj_ret = byteswap32(cmd.ret);
+                int len = byteswap32(cmd.len);
+                int id = byteswap32(cmd.id);
+#ifdef INJ_DEBUG
+                printf("inj recv FSYNC_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+#endif
+                fsync_ok = 1;
+            }
+            else if (cmd.type == CLOSE_ACK) {
+                inj_ret = byteswap32(cmd.ret);
+                int len = byteswap32(cmd.len);
+                int id = byteswap32(cmd.id);
+#ifdef INJ_DEBUG
+                printf("inj recv CLOSE_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+#endif
+                close_ok = 1;
+            }
         }
     }
 }
@@ -287,12 +308,14 @@ int open64(const char *file, int flag, ...)
         free(inj_msg);
 
     /* Using a fake file to let iozone run happily */
+/*
     int fd = -1;
     va_list args;
     va_start(args, flag);
     fd = open(file, flag | O_LARGEFILE, args);
     va_end(args);
-
+*/
+    int fd = 5;
     return fd;
 }
 
@@ -356,23 +379,24 @@ int creat64 (const char *file, mode_t mode)
         free(inj_msg);
 
     /* Using a fake file to let local iozone run happily */
+/*
     int fd = -1;
+*/
+    int fd = 5;
     /**
      * creat() is equivalent to open() with flags equal to
      * O_CREAT | O_WRONLY | O_TRUNC.
      */
+/*
     fd = creat(file, mode | O_LARGEFILE);
+*/
 
     return fd;
 }
 
-/*
 int close(int fd)
 {
-    if (inj_sockfd == -1) {
-        inj_socket_init();
-    }
-
+    int cnt = 0;
     close_id += 1;
 
     inj_msg = calloc(1, sizeof(struct cmd_t));
@@ -380,21 +404,49 @@ int close(int fd)
         perror("inj calloc");
     }
 
-    inj_msg->id = close_id;
+    inj_msg->id = byteswap32(fsync_id);
     inj_msg->type = CLOSE;
-    inj_msg->len = 0;
-    inj_msg->flag = 0;
-    inj_msg->ret = 0;
-    inj_msg->payload[0] = 0;
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+
+/**
+ * Sometimes, we send cmd to server, but server won't recv or recv
+ * a error cmd mesg for some reasons, in this case, we have to add send
+ * cmd again. In order to figure out when this case occurs, add
+ * flag to indicate this case happened and the READ cmd has been send again
+ */
+
+    while (1) {
+        usleep(200);
+
+        if (close_ok == 1) {
+            break;
+        }
+/**
+ * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
+ * it will issue data verification error. In different system, the speed of system
+ * is also different, so the problem severity is different.
+ */
+#ifdef SOLARIS
+        if (cnt > 800) {
+#else
+        if (cnt > 300) {
+#endif
+            inj_msg->again += 1;
+            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+            cnt = 0;
+        }
+        cnt += 1;
+    }
+
+    close_ok = 0;
+    cnt = 0;
 
     if (inj_msg != NULL)
         free(inj_msg);
 
     return 0;
 }
-*/
 
 /**
  * upstream : fd -> buf -> connection -> buf
@@ -526,7 +578,6 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
     lseek_id += 1;
     lseek64_ret = 0;
 
-
     inj_msg = calloc(1, sizeof(struct cmd_t));
     if (inj_msg == NULL) {
         perror("inj calloc");
@@ -642,4 +693,57 @@ int unlink(const char *path)
     return inj_ret;
 }
 
+int fsync(int fd)
+{
+    int cnt = 0;
+    fsync_id += 1;
+
+    inj_msg = calloc(1, sizeof(struct cmd_t));
+    if (inj_msg == NULL) {
+        perror("inj calloc");
+    }
+
+    inj_msg->id = byteswap32(fsync_id);
+    inj_msg->type = FSYNC;
+
+    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+
+/**
+ * Sometimes, we send cmd to server, but server won't recv or recv
+ * a error cmd mesg for some reasons, in this case, we have to add send
+ * cmd again. In order to figure out when this case occurs, add
+ * flag to indicate this case happened and the READ cmd has been send again
+ */
+
+    while (1) {
+        usleep(200);
+
+        if (fsync_ok == 1) {
+            break;
+        }
+/**
+ * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
+ * it will issue data verification error. In different system, the speed of system
+ * is also different, so the problem severity is different.
+ */
+#ifdef SOLARIS
+        if (cnt > 800) {
+#else
+        if (cnt > 300) {
+#endif
+            inj_msg->again += 1;
+            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+            cnt = 0;
+        }
+        cnt += 1;
+    }
+
+    fsync_ok = 0;
+    cnt = 0;
+
+    if (inj_msg != NULL)
+        free(inj_msg);
+
+    return 0;
+}
 

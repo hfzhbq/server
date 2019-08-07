@@ -45,13 +45,16 @@ enum cmd_type {
     WRITE,
     READ,
     UNLINK,
+    FSYNC,
     STAT,
     READ_ACK = 1,
     WRITE_ACK,
     OPEN_ACK,
     CREAT_ACK,
+    CLOSE_ACK,
     LSEEK_ACK,
-    UNLINK_ACK
+    UNLINK_ACK,
+    FSYNC_ACK
 };
 
 #define	SA	struct sockaddr
@@ -69,6 +72,8 @@ static uint32_t ack_open_id = 0;
 static uint32_t ack_creat_id = 0;
 static uint32_t ack_lseek_id = 0;
 static uint32_t ack_unlink_id = 0;
+static uint32_t ack_fsync_id = 0;
+static uint32_t ack_close_id = 0;
 
 #define IOZONE_TEMP "./iozone.tmp"
 int sock2fd = -1;
@@ -157,13 +162,37 @@ int io_parse_cmd(int sockfd)
                 free(io_ack);
             }
         }
-/*
         else if (cmd.type == CLOSE) {
-            printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd));
+            printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+            ack_close_id += 1;
+            io_ack = calloc(1, sizeof(cmd));
+            if (io_ack == NULL) {
+                perror("ioserver calloc");
+            }
 
-            close(sock2fd);
+            io_ack->type = CLOSE_ACK;
+            io_ack->id = ack_close_id;
+
+            //sock2fd = creat(IOZONE_TEMP, cmd.flag);
+            io_ack->ret = close(sock2fd);
+            if (io_ack->ret == 0) {
+                printf("close success\n");
+            }
+            else {
+                perror("ioserver close");
+            }
+
+            int nsend = 0;
+            nsend = send(connfd, io_ack, sizeof(cmd), 0);
+            if (nsend < 0) {
+                perror("ioserver send");
+            }
+
+            if (io_ack != NULL) {
+                free(io_ack);
+            }
         }
-*/
+
         else if (cmd.type == WRITE) {
             printf("server recv WRITE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
             ack_write_id += 1;
@@ -313,6 +342,36 @@ int io_parse_cmd(int sockfd)
             io_ack->id = ack_creat_id;
 
             sock2fd = creat(IOZONE_TEMP, cmd.flag);
+            if (sock2fd > 0) {
+                printf("creat success\n");
+            }
+            else if(sock2fd < 0) {
+                perror("ioserver creat");
+            }
+
+            int nsend = 0;
+            nsend = send(connfd, io_ack, sizeof(cmd), 0);
+            if (nsend < 0) {
+                perror("ioserver send");
+            }
+
+            if (io_ack != NULL) {
+                free(io_ack);
+            }
+        }
+        else if (cmd.type == FSYNC) {
+            printf("server recv FSYNC cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+            ack_creat_id += 1;
+            io_ack = calloc(1, sizeof(cmd));
+            if (io_ack == NULL) {
+                perror("ioserver calloc");
+            }
+
+            io_ack->type = FSYNC_ACK;
+            io_ack->id = ack_fsync_id;
+
+            //sock2fd = creat(IOZONE_TEMP, cmd.flag);
+            io_ack->ret = fsync(sock2fd);
             if (sock2fd > 0) {
                 printf("creat success\n");
             }
