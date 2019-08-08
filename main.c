@@ -5,6 +5,7 @@
  */
 #define _GNU_SOURCE
 //#define SOLARIS
+//#define DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,6 +22,11 @@
  * keep the copy of injector.h in this file, because I can only upload one file
  * to solais and compile only one file.
  */
+
+#ifdef DEBUG
+#define IOSERV_DEBUG
+#endif
+
 struct cmd_t {
     uint8_t  type;  /* packet type */
     uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
@@ -61,7 +67,7 @@ enum cmd_type {
 
 int listenfd = -1;
 int connfd = -1;
-pid_t pid1 = -1;
+pid_t pid = -1;
 
 static char* io_payload = NULL;
 static struct cmd_t* io_ack = NULL;
@@ -119,23 +125,11 @@ int io_parse_cmd(int sockfd)
         }
 
         if (cmd.type == OPEN) {
+#ifdef IOSERV_DEBUG
             printf("server recv OPEN cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n, open flag = %8x, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.flag, cmd.again);
+#endif
             ack_open_id += 1;
-/*
-            io_payload = calloc(1, cmd.len);
-            if (io_payload == NULL) {
-                perror("ioserver malloc");
-            }
 
-            nrecv = recv(connfd, io_payload, cmd.len, 0);
-            if (nrecv < 0) {
-                perror("ioserver recv");
-            }
-
-            if (io_payload != NULL) {
-                free(io_payload);
-            }
-*/
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
                 perror("ioserver calloc");
@@ -146,7 +140,9 @@ int io_parse_cmd(int sockfd)
             sock2fd = open64(IOZONE_TEMP, cmd.flag, 0644);
 
             if (sock2fd > 0) {
+#ifdef IOSERV_DEBUG
                 printf("open64 success\n");
+#endif
             }
             else if(sock2fd < 0) {
                 perror("ioserver open");
@@ -163,7 +159,9 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == CLOSE) {
+#ifdef IOSERV_DEBUG
             printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+#endif
             ack_close_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
@@ -173,12 +171,15 @@ int io_parse_cmd(int sockfd)
             io_ack->type = CLOSE_ACK;
             io_ack->id = ack_close_id;
 
-            //sock2fd = creat(IOZONE_TEMP, cmd.flag);
             io_ack->ret = close(sock2fd);
             if (io_ack->ret == 0) {
+#ifdef IOSERV_DEBUG
                 printf("close success\n");
+#endif
             }
             else {
+                printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+                printf("sock2fd : %d\n", sock2fd);
                 perror("ioserver close");
             }
 
@@ -194,21 +195,14 @@ int io_parse_cmd(int sockfd)
         }
 
         else if (cmd.type == WRITE) {
+#ifdef IOSERV_DEBUG
             printf("server recv WRITE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+#endif
             ack_write_id += 1;
             io_payload = calloc(1, cmd.len);
             if (io_payload == NULL) {
                 perror("ioserver calloc");
             }
-
-/*
-            nrecv = recv(connfd, io_payload, cmd.len, 0);
-
-            if (nrecv != cmd.len) {
-                printf("break\n");
-                break;
-            }
-*/
 
             nrecv = inj_read(connfd, io_payload, cmd.len);
 
@@ -216,7 +210,7 @@ int io_parse_cmd(int sockfd)
                 perror("ioserver recv");
             }
             else {
-                printf("nrecv : %d\n", nrecv);
+
                 io_ack = calloc(1, sizeof(cmd));
                 if (io_ack == NULL) {
                     perror("ioserver calloc");
@@ -246,7 +240,9 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == READ) {
+#ifdef IOSERV_DEBUG
             printf("server recv READ cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+#endif
             ack_read_id += 1;
             if (cmd.len > 0) {
                 io_ack = calloc(1, sizeof(cmd) + cmd.len);
@@ -275,8 +271,9 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == LSEEK) {
+#ifdef IOSERV_DEBUG
             printf("server recv LSEEK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, whence = %#x, offset = %x, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.whence, cmd.offset, cmd.again);
-
+#endif
             ack_lseek_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
@@ -286,12 +283,16 @@ int io_parse_cmd(int sockfd)
             io_ack->type = LSEEK_ACK;
             io_ack->id = ack_lseek_id;
             io_ack->offset = lseek(sock2fd, cmd.offset, cmd.whence);
-
-/*
-            if (io_ack->ret < 0) {
-                perror("ioserver lseek");
+            if (io_ack->offset > 0) {
+#ifdef IOSERV_DEBUG
+                printf("lseek success\n");
+#endif
             }
-*/
+            else if(io_ack->offset < 0) {
+//                printf("server recv LSEEK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, whence = %#x, offset = %x, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.whence, cmd.offset, cmd.again);
+//                printf("sock2fd : %d\n", sock2fd);
+//                perror("ioserver lseek");
+            }
 
             int nsend = 0;
             nsend = send(connfd, io_ack, sizeof(cmd), 0);
@@ -304,8 +305,9 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == UNLINK) {
+#ifdef IOSERV_DEBUG
             printf("server recv UNLINK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
-
+#endif
             ack_unlink_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
@@ -331,7 +333,9 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == CREAT) {
+#ifdef IOSERV_DEBUG
             printf("server recv CREAT cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+#endif
             ack_creat_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
@@ -343,7 +347,9 @@ int io_parse_cmd(int sockfd)
 
             sock2fd = creat(IOZONE_TEMP, cmd.flag);
             if (sock2fd > 0) {
+#ifdef IOSERV_DEBUG
                 printf("creat success\n");
+#endif
             }
             else if(sock2fd < 0) {
                 perror("ioserver creat");
@@ -360,7 +366,9 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == FSYNC) {
+#ifdef IOSERV_DEBUG
             printf("server recv FSYNC cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+#endif
             ack_creat_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
@@ -370,13 +378,14 @@ int io_parse_cmd(int sockfd)
             io_ack->type = FSYNC_ACK;
             io_ack->id = ack_fsync_id;
 
-            //sock2fd = creat(IOZONE_TEMP, cmd.flag);
             io_ack->ret = fsync(sock2fd);
-            if (sock2fd > 0) {
-                printf("creat success\n");
+            if (io_ack->ret == 0) {
+#ifdef IOSERV_DEBUG
+                printf("fsync success\n");
+#endif
             }
-            else if(sock2fd < 0) {
-                perror("ioserver creat");
+            else {
+                perror("ioserver fsync");
             }
 
             int nsend = 0;
@@ -399,14 +408,9 @@ void ioserver_stop(int signo)
     close(listenfd);
     close(sock2fd);
 
-/*
-    if (io_payload != NULL)
-        free(io_payload);
-*/
-
-    if (pid1 > 0) {
+    if (pid > 0) {
         unlink(IOZONE_TEMP);
-        waitpid(pid1, NULL, 0);
+        waitpid(pid, NULL, 0);
     }
 
     exit(0);
@@ -443,14 +447,14 @@ int main(int argc, char** argv)
 
         printf("Connection is established\n");
 
-        pid1 = fork();
-        if (pid1 == 0) {
+        pid = fork();
+        if (pid == 0) {
             close(listenfd);
             io_parse_cmd(connfd);
 
             exit(0);
         }
-        else if (pid1 < 0) {
+        else if (pid < 0) {
             perror("fork");
         }
         else {
