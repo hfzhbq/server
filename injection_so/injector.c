@@ -1,7 +1,7 @@
 /*
  * File:   injector.c
  * Author: Baiqiang Hong
- * Usage : LD_PRELOAD=/tmp/20190708/NetBeansProjects/info_server/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i0 -i1 -i2 -i3 -i4 -i5
+ * Usage : LD_PRELOAD=/tmp/20190802/ioserver/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i0 -i1 -i2 -i3 -i4 -i5
  */
 
 #define _GNU_SOURCE
@@ -404,7 +404,7 @@ int close(int fd)
         perror("inj calloc");
     }
 
-    inj_msg->id = byteswap32(fsync_id);
+    inj_msg->id = byteswap32(close_id);
     inj_msg->type = CLOSE;
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
@@ -430,7 +430,7 @@ int close(int fd)
 #ifdef SOLARIS
         if (cnt > 800) {
 #else
-        if (cnt > 300) {
+        if (cnt > 800) {
 #endif
             inj_msg->again += 1;
             inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));

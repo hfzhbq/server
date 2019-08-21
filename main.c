@@ -5,7 +5,7 @@
  */
 #define _GNU_SOURCE
 //#define SOLARIS
-//#define DEBUG
+#define DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -178,7 +178,7 @@ int io_parse_cmd(int sockfd)
 #endif
             }
             else {
-                printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+//                printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
                 printf("sock2fd : %d\n", sock2fd);
                 perror("ioserver close");
             }
@@ -369,7 +369,7 @@ int io_parse_cmd(int sockfd)
 #ifdef IOSERV_DEBUG
             printf("server recv FSYNC cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
 #endif
-            ack_creat_id += 1;
+            ack_fsync_id += 1;
             io_ack = calloc(1, sizeof(cmd));
             if (io_ack == NULL) {
                 perror("ioserver calloc");
