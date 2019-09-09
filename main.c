@@ -80,6 +80,12 @@ static uint32_t ack_lseek_id = 0;
 static uint32_t ack_unlink_id = 0;
 static uint32_t ack_fsync_id = 0;
 static uint32_t ack_close_id = 0;
+/**
+ * even though lseek is called unsuccessfully, but it also will respond. the iozone also call lseek unsuccessfully on reverse read phase.
+ */
+static uint32_t lseek_rec_id = 0;
+static uint32_t fsync_rec_id = 0;
+static uint32_t read_rec_id = 0;
 
 #define IOZONE_TEMP "./iozone.tmp"
 int sock2fd = -1;
@@ -179,8 +185,10 @@ int io_parse_cmd(int sockfd)
             }
             else {
 //                printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+/*
                 printf("sock2fd : %d\n", sock2fd);
                 perror("ioserver close");
+*/
             }
 
             int nsend = 0;
@@ -254,11 +262,17 @@ int io_parse_cmd(int sockfd)
                 io_ack->id = ack_read_id;
                 io_ack->len = cmd.len;
 
-                io_ack->ret = read(sock2fd, io_ack->payload, cmd.len);
+                if (read_rec_id != cmd.id) {
+                    io_ack->ret = read(sock2fd, io_ack->payload, cmd.len);
+                }
 
                 if (io_ack->ret < 0) {
                     perror("ioserver read");
                 }
+                else {
+                    read_rec_id = cmd.id;
+                }
+
                 int nsend = 0;
                 nsend = send(connfd, io_ack, sizeof(cmd) + cmd.len, 0);
                 if (nsend < 0) {
@@ -378,11 +392,15 @@ int io_parse_cmd(int sockfd)
             io_ack->type = FSYNC_ACK;
             io_ack->id = ack_fsync_id;
 
-            io_ack->ret = fsync(sock2fd);
+ //           if (fsync_rec_id != cmd.id) {
+                io_ack->ret = fsync(sock2fd);
+//            }
+
             if (io_ack->ret == 0) {
 #ifdef IOSERV_DEBUG
                 printf("fsync success\n");
 #endif
+//                fsync_rec_id = cmd.id;
             }
             else {
                 perror("ioserver fsync");

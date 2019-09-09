@@ -123,8 +123,8 @@ static void *cmd_parse_thread(void *arg)
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
                 if (len > 0) {
-#ifdef INJ_DEBUG1
-                    printf("inj recv READ ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+#ifdef INJ_DEBUG
+                    printf("inj recv READ ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, read_ret = %d\n", cmd.type, id, len, sizeof(cmd), inj_ret);
 #endif
                     inj_payload = calloc(1, len);
                     if (inj_payload == NULL) {
@@ -146,7 +146,7 @@ static void *cmd_parse_thread(void *arg)
                 lseek64_ret = byteswap64(cmd.offset);
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
-#ifdef INJ_DEBUG1
+#ifdef INJ_DEBUG
                 printf("inj recv LSEEK_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, ret = %x\n", cmd.type, id, len, sizeof(cmd), lseek64_ret);
 #endif
                 lseek_ok = 1;
@@ -155,7 +155,7 @@ static void *cmd_parse_thread(void *arg)
                 inj_ret = byteswap32(cmd.ret);
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
-#ifdef INJ_DEBUG1
+#ifdef INJ_DEBUG
                 printf("inj recv WRITE_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
 #endif
                 write_ok = 1;
@@ -164,7 +164,7 @@ static void *cmd_parse_thread(void *arg)
                 inj_ret = byteswap32(cmd.ret);
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
-#ifdef INJ_DEBUG1
+#ifdef INJ_DEBUG
                 printf("inj recv OPEN_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
 #endif
                 open_ok = 1;
@@ -173,7 +173,7 @@ static void *cmd_parse_thread(void *arg)
                 inj_ret = byteswap32(cmd.ret);
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
-#ifdef INJ_DEBUG1
+#ifdef INJ_DEBUG
                 printf("inj recv CREAT_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
 #endif
                 creat_ok = 1;
@@ -182,7 +182,7 @@ static void *cmd_parse_thread(void *arg)
                 inj_ret = byteswap32(cmd.ret);
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
-#ifdef INJ_DEBUG1
+#ifdef INJ_DEBUG
                 printf("inj recv UNLINK_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
 #endif
                 unlink_ok = 1;
@@ -191,7 +191,7 @@ static void *cmd_parse_thread(void *arg)
                 inj_ret = byteswap32(cmd.ret);
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
-#ifdef INJ_DEBUG1
+#ifdef INJ_DEBUG
                 printf("inj recv FSYNC_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
 #endif
                 fsync_ok = 1;
@@ -583,6 +583,8 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
         perror("inj calloc");
     }
 
+//    printf("inj LSEEK offset = %x, lseek_id = %u\n", offset, lseek_id);
+
     inj_msg->id = byteswap32(lseek_id);
     inj_msg->type = LSEEK;
     inj_msg->whence = byteswap32(whence);
@@ -611,7 +613,7 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
 #ifdef SOLARIS
         if (cnt > 1200) {
 #else
-        if (cnt > 300) {
+        if (cnt > 500) {
 #endif
             inj_msg->again += 1;
             inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
@@ -747,3 +749,11 @@ int fsync(int fd)
     return 0;
 }
 
+/*
+int stat64(const char *path, struct stat64 *statbuf)
+{
+    printf("stat64 hook");
+    statbuf->st_mode = statbuf->st_mode | S_IFREG;
+    return 0;
+}
+*/
