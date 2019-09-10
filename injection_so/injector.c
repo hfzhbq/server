@@ -490,7 +490,11 @@ ssize_t read(int fd, void *buf, size_t size)
             break;
         }
 
+#ifdef SOLARIS
+        if (cnt > 300) {
+#else
         if (cnt > 100) {
+#endif
             inj_msg->again += 1;
             inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
             cnt = 0;

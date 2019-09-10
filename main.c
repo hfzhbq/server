@@ -92,6 +92,11 @@ int sock2fd = -1;
 
 static struct cmd_t cmd;
 
+#ifdef IOSERV_DEBUG
+static struct timespec start, end;
+static double elapsed;
+#endif
+
 static ssize_t inj_read(int sock_fd, void *buf, size_t size)
 {
     int nread = 0;
@@ -263,7 +268,16 @@ int io_parse_cmd(int sockfd)
                 io_ack->len = cmd.len;
 
                 if (read_rec_id != cmd.id) {
+#ifdef IOSERV_DEBUG
+                    clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+#endif
                     io_ack->ret = read(sock2fd, io_ack->payload, cmd.len);
+#ifdef IOSERV_DEBUG
+                    clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+                    elapsed = (end.tv_sec - start.tv_sec);
+                    elapsed += (end.tv_nsec - start.tv_nsec) / 1000000000.0;
+                    printf("the read time is %f seconds\n\r", elapsed);
+#endif
                 }
 
                 if (io_ack->ret < 0) {
@@ -286,7 +300,7 @@ int io_parse_cmd(int sockfd)
         }
         else if (cmd.type == LSEEK) {
 #ifdef IOSERV_DEBUG
-            printf("server recv LSEEK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, whence = %#x, offset = %x, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.whence, cmd.offset, cmd.again);
+            printf("server recv LSEEK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, whence = %#x, offset = %llx, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.whence, cmd.offset, cmd.again);
 #endif
             ack_lseek_id += 1;
             io_ack = calloc(1, sizeof(cmd));
