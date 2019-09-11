@@ -269,11 +269,11 @@ int io_parse_cmd(int sockfd)
 
                 if (read_rec_id != cmd.id) {
 #ifdef IOSERV_DEBUG
-                    clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+                    clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
                     io_ack->ret = read(sock2fd, io_ack->payload, cmd.len);
 #ifdef IOSERV_DEBUG
-                    clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+                    clock_gettime(CLOCK_MONOTONIC, &end);
                     elapsed = (end.tv_sec - start.tv_sec);
                     elapsed += (end.tv_nsec - start.tv_nsec) / 1000000000.0;
                     printf("the read time is %f seconds\n\r", elapsed);

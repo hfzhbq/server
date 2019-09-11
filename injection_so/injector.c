@@ -462,7 +462,7 @@ ssize_t read(int fd, void *buf, size_t size)
     read_id += 1;
     size_t len = size;
 
-    inj_msg = calloc(1, sizeof(struct cmd_t) + len);
+    inj_msg = calloc(1, sizeof(struct cmd_t));
     if (inj_msg == NULL) {
         perror("inj calloc");
     }
@@ -474,7 +474,7 @@ ssize_t read(int fd, void *buf, size_t size)
     inj_msg->ret = 0;
     inj_msg->payload[0] = 0;
 
-    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
+    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
     /**
      * Sometimes, we send cmd to server, but server won't recv or recv
@@ -491,12 +491,12 @@ ssize_t read(int fd, void *buf, size_t size)
         }
 
 #ifdef SOLARIS
-        if (cnt > 300) {
+        if (cnt > 800) {
 #else
         if (cnt > 100) {
 #endif
             inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
+            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
             cnt = 0;
         }
         cnt += 1;
