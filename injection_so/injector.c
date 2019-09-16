@@ -307,7 +307,7 @@ int open64(const char *file, int flag, ...)
     if (inj_msg != NULL)
         free(inj_msg);
 
-    /* Using a fake file to let iozone run happily */
+/* Using a fake file to let iozone run happily */
 /*
     int fd = -1;
     va_list args;
@@ -378,18 +378,7 @@ int creat64 (const char *file, mode_t mode)
     if (inj_msg != NULL)
         free(inj_msg);
 
-    /* Using a fake file to let local iozone run happily */
-/*
-    int fd = -1;
-*/
     int fd = 5;
-    /**
-     * creat() is equivalent to open() with flags equal to
-     * O_CREAT | O_WRONLY | O_TRUNC.
-     */
-/*
-    fd = creat(file, mode | O_LARGEFILE);
-*/
 
     return fd;
 }
@@ -430,7 +419,7 @@ int close(int fd)
 #ifdef SOLARIS
         if (cnt > 800) {
 #else
-        if (cnt > 800) {
+        if (cnt > 300) {
 #endif
             inj_msg->again += 1;
             inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
@@ -449,7 +438,7 @@ int close(int fd)
 }
 
 /**
- * upstream : fd -> buf -> connection -> buf
+ * upstream : Solaris fd -> Solaris buf -> connection -> Linux buf
  */
 
 ssize_t read(int fd, void *buf, size_t size)
@@ -490,16 +479,18 @@ ssize_t read(int fd, void *buf, size_t size)
             break;
         }
 
+/*
 #ifdef SOLARIS
         if (cnt > 800) {
 #else
-        if (cnt > 100) {
+        if (cnt > 300) {
 #endif
             inj_msg->again += 1;
             inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
             cnt = 0;
         }
         cnt += 1;
+*/
     }
     memcpy(buf, inj_payload, len);
     read_ok = 0;
@@ -514,7 +505,7 @@ ssize_t read(int fd, void *buf, size_t size)
     return size;
 }
 /**
- *  downstream : buf -> connection -> buf -> fd
+ *  downstream : Linux buf -> connection -> Solaris buf -> Solaris fd
  */
 ssize_t write(int fd, const void *buf, size_t size)
 {
@@ -554,7 +545,11 @@ ssize_t write(int fd, const void *buf, size_t size)
             break;
         }
 
-        if (cnt > 100) {
+#ifdef SOLARIS
+        if (cnt > 800) {
+#else
+        if (cnt > 300) {
+#endif
             inj_msg->again += 1;
             inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
             cnt = 0;
@@ -761,3 +756,9 @@ int stat64(const char *path, struct stat64 *statbuf)
     return 0;
 }
 */
+int __xstat64(int ver, const char *path, struct stat64 *statbuf)
+{
+  //printf("xstat64 is called\n");
+  statbuf->st_mode = statbuf->st_mode & S_IFREG;
+  return 0;
+}

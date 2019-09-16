@@ -264,7 +264,8 @@ int io_parse_cmd(int sockfd)
                 }
 
                 io_ack->type = READ_ACK;
-                io_ack->id = ack_read_id;
+      //          io_ack->id = ack_read_id;
+                io_ack->id = cmd.id;
                 io_ack->len = cmd.len;
 
                 if (read_rec_id != cmd.id) {
@@ -429,6 +430,11 @@ int io_parse_cmd(int sockfd)
             if (io_ack != NULL) {
                 free(io_ack);
             }
+        }
+        else {
+#ifdef IOSERV_DEBUG
+            printf("server recv UNKNOWN cmd type = %d\n", cmd.type);
+#endif
         }
     }
 }
