@@ -1,7 +1,7 @@
 /*
  * File:   injector.c
  * Author: Baiqiang Hong
- * Usage : LD_PRELOAD=/tmp/20190802/ioserver/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i0 -i1 -i2 -i3 -i4 -i5
+ * Usage : LD_PRELOAD=/home/20190917/ioserver/injection_so/dist/Debug/GNU-Linux/libinjection_so.so ./iozone -Ra -g 1G -i0 -i1 -i2 -i3 -i4 -i5
  */
 
 #define _GNU_SOURCE
@@ -271,24 +271,13 @@ int open64(const char *file, int flag, ...)
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
-/**
- * Sometimes, we send cmd to server, but server won't recv or recv
- * a error cmd mesg for some reasons, in this case, we have to add send
- * cmd again. In order to figure out when this case occurs, add
- * flag to indicate this case happened and the READ cmd has been send again
- */
-
     while (1) {
         usleep(200);
 
         if (open_ok == 1) {
             break;
         }
-/**
- * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
- * it will issue data verification error. In different system, the speed of system
- * is also different, so the problem severity is different.
- */
+
 #ifdef SOLARIS
         if (cnt > 800) {
 #else
@@ -342,24 +331,13 @@ int creat64 (const char *file, mode_t mode)
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
-/**
- * Sometimes, we send cmd to server, but server won't recv or recv
- * a error cmd mesg for some reasons, in this case, we have to add send
- * cmd again. In order to figure out when this case occurs, add
- * flag to indicate this case happened and the READ cmd has been send again
- */
-
     while (1) {
         usleep(200);
 
         if (creat_ok == 1) {
             break;
         }
-/**
- * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
- * it will issue data verification error. In different system, the speed of system
- * is also different, so the problem severity is different.
- */
+
 #ifdef SOLARIS
         if (cnt > 800) {
 #else
@@ -398,24 +376,13 @@ int close(int fd)
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
-/**
- * Sometimes, we send cmd to server, but server won't recv or recv
- * a error cmd mesg for some reasons, in this case, we have to add send
- * cmd again. In order to figure out when this case occurs, add
- * flag to indicate this case happened and the READ cmd has been send again
- */
-
     while (1) {
         usleep(200);
 
         if (close_ok == 1) {
             break;
         }
-/**
- * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
- * it will issue data verification error. In different system, the speed of system
- * is also different, so the problem severity is different.
- */
+
 #ifdef SOLARIS
         if (cnt > 800) {
 #else
@@ -464,13 +431,6 @@ ssize_t read(int fd, void *buf, size_t size)
     inj_msg->payload[0] = 0;
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-
-    /**
-     * Sometimes, we send cmd to server, but server won't recv or recv
-     * a error cmd mesg for some reasons, in this case, we have to add send
-     *  cmd again. In order to figure out when this case occurs, add
-     * flag to indicate this case happened and the cmd has been send again
-     */
 
     while (1) {
         usleep(200);
@@ -532,12 +492,6 @@ ssize_t write(int fd, const void *buf, size_t size)
     memcpy(inj_msg->payload, buffer, len);
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
 
-    /**
-     * Sometimes, we send cmd to server, but server won't recv or recv
-     * a error cmd mesg for some reasons, in this case, we have to add send
-     * cmd again. In order to figure out when this case occurs, add
-     * flag to indicate this case happened and the cmd has been send again
-     */
     while (1) {
         usleep(200);
 
@@ -582,8 +536,6 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
         perror("inj calloc");
     }
 
-//    printf("inj LSEEK offset = %x, lseek_id = %u\n", offset, lseek_id);
-
     inj_msg->id = byteswap32(lseek_id);
     inj_msg->type = LSEEK;
     inj_msg->whence = byteswap32(whence);
@@ -591,24 +543,13 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
-    /**
-     * Sometimes, we send cmd to server, but server won't recv or recv
-     * a error cmd mesg for some reasons, in this case, we have to add send
-     * cmd again. In order to figure out when this case occurs, add
-     * flag to indicate this case happened and the READ cmd has been send again
-     */
-
     while (1) {
         usleep(200);
 
         if (lseek_ok == 1) {
             break;
         }
-/**
- * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
- * it will issue data verification error. In different system, the speed of system
- * is also different, so the problem severity is different.
- */
+
 #ifdef SOLARIS
         if (cnt > 1200) {
 #else
@@ -652,24 +593,13 @@ int unlink(const char *path)
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
-    /**
-     * Sometimes, we send cmd to server, but server won't recv or recv
-     * a error cmd mesg for some reasons, in this case, we have to add send
-     * cmd again. In order to figure out when this case occurs, add
-     * flag to indicate this case happened and the READ cmd has been send again
-     */
-
     while (1) {
         usleep(200);
 
         if (unlink_ok == 1) {
             break;
         }
-/**
- * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
- * it will issue data verification error. In different system, the speed of system
- * is also different, so the problem severity is different.
- */
+
 #ifdef SOLARIS
         if (cnt > 800) {
 #else
@@ -709,13 +639,6 @@ int fsync(int fd)
 
     inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
 
-/**
- * Sometimes, we send cmd to server, but server won't recv or recv
- * a error cmd mesg for some reasons, in this case, we have to add send
- * cmd again. In order to figure out when this case occurs, add
- * flag to indicate this case happened and the READ cmd has been send again
- */
-
     while (1) {
         usleep(200);
 
@@ -748,17 +671,8 @@ int fsync(int fd)
     return 0;
 }
 
-/*
-int stat64(const char *path, struct stat64 *statbuf)
-{
-    printf("stat64 hook");
-    statbuf->st_mode = statbuf->st_mode | S_IFREG;
-    return 0;
-}
-*/
 int __xstat64(int ver, const char *path, struct stat64 *statbuf)
 {
-  //printf("xstat64 is called\n");
   statbuf->st_mode = statbuf->st_mode & S_IFREG;
   return 0;
 }

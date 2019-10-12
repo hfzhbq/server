@@ -8,14 +8,14 @@
 
 #define IOZONE_TEMP "./iozone.tmp"
 
-#define SOLARIS
+//#define SOLARIS
 //#define DEBUG
 
 #define SERV_PORT   9090
 
 #ifdef SOLARIS
 #define FLIP_ENDIAN
-#define SERV_ADDR   "192.168.2.49"
+#define SERV_ADDR   "192.168.2.89"
 #else
 #define SERV_ADDR   "127.0.0.1"
 #endif

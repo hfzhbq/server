@@ -1,5 +1,5 @@
 /*
- * File:   injector.c
+ * File:   main.c
  * Author: Baiqiang Hong
  * Usage: ./ioserver
  */
@@ -18,10 +18,6 @@
 #include <string.h>
 #include <signal.h>
 #include <fcntl.h>
-/**
- * keep the copy of injector.h in this file, because I can only upload one file
- * to solais and compile only one file.
- */
 
 #ifdef DEBUG
 #define IOSERV_DEBUG
@@ -189,11 +185,7 @@ int io_parse_cmd(int sockfd)
 #endif
             }
             else {
-//                printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
-/*
-                printf("sock2fd : %d\n", sock2fd);
                 perror("ioserver close");
-*/
             }
 
             int nsend = 0;
@@ -264,7 +256,6 @@ int io_parse_cmd(int sockfd)
                 }
 
                 io_ack->type = READ_ACK;
-      //          io_ack->id = ack_read_id;
                 io_ack->id = cmd.id;
                 io_ack->len = cmd.len;
 
@@ -318,9 +309,7 @@ int io_parse_cmd(int sockfd)
 #endif
             }
             else if(io_ack->offset < 0) {
-//                printf("server recv LSEEK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, whence = %#x, offset = %x, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.whence, cmd.offset, cmd.again);
-//                printf("sock2fd : %d\n", sock2fd);
-//                perror("ioserver lseek");
+                perror("ioserver lseek");
             }
 
             int nsend = 0;
@@ -406,16 +395,12 @@ int io_parse_cmd(int sockfd)
 
             io_ack->type = FSYNC_ACK;
             io_ack->id = ack_fsync_id;
-
- //           if (fsync_rec_id != cmd.id) {
-                io_ack->ret = fsync(sock2fd);
-//            }
+            io_ack->ret = fsync(sock2fd);
 
             if (io_ack->ret == 0) {
 #ifdef IOSERV_DEBUG
                 printf("fsync success\n");
 #endif
-//                fsync_rec_id = cmd.id;
             }
             else {
                 perror("ioserver fsync");
