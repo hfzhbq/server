@@ -5,7 +5,7 @@
  */
 #define _GNU_SOURCE
 //#define SOLARIS
-#define DEBUG
+//#define DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,6 +28,7 @@ struct cmd_t {
     uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
     uint32_t len;   /* the length of payload */
     uint32_t flag;  /* flag of command */
+    char mode[2];       /* mode of fopen64 */
 #ifdef SOLARIS
     off64_t offset;
 #else
@@ -40,7 +41,7 @@ struct cmd_t {
 }__attribute__((packed));
 
 enum cmd_type {
-    OPEN = 11,
+    OPEN = 1,
     CREAT,
     CLOSE,
     LSEEK,
@@ -48,18 +49,26 @@ enum cmd_type {
     READ,
     UNLINK,
     FSYNC,
-    STAT,
-    READ_ACK = 1,
+    FOPEN,
+    FWRITE,
+    FREAD,
+    FCLOSE,
+    FFLUSH,
+    FILENO,
+    SETVBUF,
+    READ_ACK = 20,
     WRITE_ACK,
     OPEN_ACK,
     CREAT_ACK,
     CLOSE_ACK,
     LSEEK_ACK,
     UNLINK_ACK,
-    FSYNC_ACK
+    FSYNC_ACK,
+    FOPEN_ACK
 };
 
 #define	SA	struct sockaddr
+static struct sockaddr_in listen_addr, connect_addr, peer_addr;
 
 int listenfd = -1;
 int connfd = -1;
@@ -76,6 +85,8 @@ static uint32_t ack_lseek_id = 0;
 static uint32_t ack_unlink_id = 0;
 static uint32_t ack_fsync_id = 0;
 static uint32_t ack_close_id = 0;
+
+static uint32_t ack_fopen_id = 0;
 /**
  * even though lseek is called unsuccessfully, but it also will respond. the iozone also call lseek unsuccessfully on reverse read phase.
  */
@@ -85,6 +96,7 @@ static uint32_t read_rec_id = 0;
 
 #define IOZONE_TEMP "./iozone.tmp"
 int sock2fd = -1;
+FILE* stream = NULL;
 
 static struct cmd_t cmd;
 
@@ -166,6 +178,11 @@ int io_parse_cmd(int sockfd)
             }
         }
         else if (cmd.type == CLOSE) {
+            /**
+             * close twice excution problem is caused by iozone, when j=1,
+             * the creat is not excuted, but close is excuted later, so it
+             * cause close fail.
+             */
 #ifdef IOSERV_DEBUG
             printf("server recv CLOSE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
 #endif
@@ -184,9 +201,11 @@ int io_parse_cmd(int sockfd)
                 printf("close success\n");
 #endif
             }
+/*
             else {
                 perror("ioserver close");
             }
+*/
 
             int nsend = 0;
             nsend = send(connfd, io_ack, sizeof(cmd), 0);
@@ -303,14 +322,20 @@ int io_parse_cmd(int sockfd)
             io_ack->type = LSEEK_ACK;
             io_ack->id = ack_lseek_id;
             io_ack->offset = lseek(sock2fd, cmd.offset, cmd.whence);
+            /**
+             * lseek has so many redundancy in iozone, so in some loop, lseek
+             * OP is invalid, don't need check its ret-val.
+             */
             if (io_ack->offset > 0) {
 #ifdef IOSERV_DEBUG
                 printf("lseek success\n");
 #endif
             }
+/*
             else if(io_ack->offset < 0) {
                 perror("ioserver lseek");
             }
+*/
 
             int nsend = 0;
             nsend = send(connfd, io_ack, sizeof(cmd), 0);
@@ -416,6 +441,41 @@ int io_parse_cmd(int sockfd)
                 free(io_ack);
             }
         }
+        else if (cmd.type == FOPEN) {
+//#ifdef IOSERV_DEBUG
+            printf("server recv FOPEN cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n, fopen mode= %s, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.mode, cmd.again);
+//#endif
+            ack_fopen_id += 1;
+
+            io_ack = calloc(1, sizeof(cmd));
+            if (io_ack == NULL) {
+                perror("ioserver calloc");
+            }
+
+            io_ack->type = FOPEN_ACK;
+            io_ack->id = ack_fopen_id;
+
+            stream = fopen64(IOZONE_TEMP, cmd.mode);
+
+            if (stream != NULL) {
+//#ifdef IOSERV_DEBUG
+                printf("fopen64 success\n");
+//#endif
+            }
+            else if(stream == NULL) {
+                perror("ioserver fopen");
+            }
+
+            int nsend = 0;
+            nsend = send(connfd, io_ack, sizeof(cmd), 0);
+            if (nsend < 0) {
+                perror("ioserver send");
+            }
+
+            if (io_ack != NULL) {
+                free(io_ack);
+            }
+        }
         else {
 #ifdef IOSERV_DEBUG
             printf("server recv UNKNOWN cmd type = %d\n", cmd.type);
@@ -443,9 +503,16 @@ int main(int argc, char** argv)
 {
 
     struct sockaddr_in servaddr;
+    char ip_addr[INET_ADDRSTRLEN];
 
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("socket error");
+    }
+
+    int optval = 1;
+    if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+        perror("setsockopt error");
+        exit(-1);
     }
 
     bzero(&servaddr, sizeof(servaddr));
@@ -454,6 +521,8 @@ int main(int argc, char** argv)
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
+    getsockname(listenfd, (struct sockaddr *)&listen_addr, sizeof(listen_addr));
+    printf("ioserver listen address = %s:%d\n", inet_ntoa(listen_addr.sin_addr), ntohs(listen_addr.sin_port));
 
     listen(listenfd, SOMAXCONN);
 
@@ -462,6 +531,10 @@ int main(int argc, char** argv)
     while (1) {
 
         connfd = accept(listenfd, (SA*)NULL, NULL);
+        getsockname(connfd, (struct sockaddr *)&connect_addr, sizeof(connect_addr));
+        printf("connected server address = %s:%d\n", inet_ntoa(connect_addr.sin_addr), ntohs(connect_addr.sin_port));
+        getpeername(connfd, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
+        printf("connected peer address = %s:%d\n", inet_ntop(AF_INET, &peer_addr.sin_addr, ip_addr, sizeof(ip_addr)), ntohs(peer_addr.sin_port));
 
         if (connfd < 0) {
             printf("Error: %d\n", strerror(errno));

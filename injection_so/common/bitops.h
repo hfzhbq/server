@@ -152,4 +152,13 @@ static inline uint64_t byteswap64(uint64_t val)
 #endif
 }
 
+static inline uint64_t strswap16(char* val)
+{
+#ifdef FLIP_ENDIAN
+    return strcat(val[1], val[0]);
+#else
+    return val;
+#endif
+}
+
 #endif

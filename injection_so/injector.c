@@ -24,6 +24,8 @@
 #include <common/bitops.h>
 #include "injector.h"
 
+#include <dlfcn.h>
+
 static int inj_sockfd = -1;
 
 static uint32_t open_id = 0;
@@ -34,6 +36,10 @@ static uint32_t lseek_id = 0;
 static uint32_t unlink_id = 0;
 static uint32_t fsync_id = 0;
 static uint32_t close_id = 0;
+
+static uint32_t fopen_id = 0;
+
+static uint32_t fwrite_id = 0;
 
 static char* inj_payload = NULL;
 
@@ -46,6 +52,9 @@ volatile int creat_ok = 0;
 volatile int unlink_ok = 0;
 volatile int fsync_ok = 0;
 volatile int close_ok = 0;
+
+volatile int fopen_ok = 0;
+volatile int fwrite_ok = 0;
 
 volatile int inj_ret = 0;
 volatile __off64_t lseek64_ret = 0;
@@ -114,7 +123,7 @@ static void *cmd_parse_thread(void *arg)
         nrecv = recv(inj_sockfd, &cmd, sizeof(cmd), 0);
         if (nrecv < 0) {
             perror("inj recv error");
-            return -1;
+            _exit(0);
         }
 
         if (nrecv > 0) {
@@ -205,6 +214,23 @@ static void *cmd_parse_thread(void *arg)
 #endif
                 close_ok = 1;
             }
+            else if (cmd.type == OPEN_ACK) {
+                inj_ret = byteswap32(cmd.ret);
+                int len = byteswap32(cmd.len);
+                int id = byteswap32(cmd.id);
+#ifdef INJ_DEBUG
+                printf("inj recv OPEN_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+#endif
+                open_ok = 1;
+            }
+            else if (cmd.type == FOPEN_ACK) {
+                int len = byteswap32(cmd.len);
+                int id = byteswap32(cmd.id);
+//#ifdef INJ_DEBUG
+                printf("inj recv FOPEN_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
+//#endif
+                fopen_ok = 1;
+            }
         }
     }
 }
@@ -277,17 +303,6 @@ int open64(const char *file, int flag, ...)
         if (open_ok == 1) {
             break;
         }
-
-#ifdef SOLARIS
-        if (cnt > 800) {
-#else
-        if (cnt > 300) {
-#endif
-            inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-            cnt = 0;
-        }
-        cnt += 1;
     }
 
     open_ok = 0;
@@ -296,14 +311,6 @@ int open64(const char *file, int flag, ...)
     if (inj_msg != NULL)
         free(inj_msg);
 
-/* Using a fake file to let iozone run happily */
-/*
-    int fd = -1;
-    va_list args;
-    va_start(args, flag);
-    fd = open(file, flag | O_LARGEFILE, args);
-    va_end(args);
-*/
     int fd = 5;
     return fd;
 }
@@ -337,17 +344,6 @@ int creat64 (const char *file, mode_t mode)
         if (creat_ok == 1) {
             break;
         }
-
-#ifdef SOLARIS
-        if (cnt > 800) {
-#else
-        if (cnt > 300) {
-#endif
-            inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-            cnt = 0;
-        }
-        cnt += 1;
     }
 
     creat_ok = 0;
@@ -382,17 +378,6 @@ int close(int fd)
         if (close_ok == 1) {
             break;
         }
-
-#ifdef SOLARIS
-        if (cnt > 800) {
-#else
-        if (cnt > 300) {
-#endif
-            inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-            cnt = 0;
-        }
-        cnt += 1;
     }
 
     close_ok = 0;
@@ -438,19 +423,6 @@ ssize_t read(int fd, void *buf, size_t size)
         if (read_ok == 1) {
             break;
         }
-
-/*
-#ifdef SOLARIS
-        if (cnt > 800) {
-#else
-        if (cnt > 300) {
-#endif
-            inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-            cnt = 0;
-        }
-        cnt += 1;
-*/
     }
     memcpy(buf, inj_payload, len);
     read_ok = 0;
@@ -498,17 +470,6 @@ ssize_t write(int fd, const void *buf, size_t size)
         if (write_ok == 1) {
             break;
         }
-
-#ifdef SOLARIS
-        if (cnt > 800) {
-#else
-        if (cnt > 300) {
-#endif
-            inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
-            cnt = 0;
-        }
-        cnt += 1;
     }
 
     write_ok = 0;
@@ -549,17 +510,6 @@ __off64_t lseek64 (int fd, __off64_t offset, int whence)
         if (lseek_ok == 1) {
             break;
         }
-
-#ifdef SOLARIS
-        if (cnt > 1200) {
-#else
-        if (cnt > 500) {
-#endif
-            inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-            cnt = 0;
-        }
-        cnt += 1;
     }
 
     lseek_ok = 0;
@@ -599,17 +549,6 @@ int unlink(const char *path)
         if (unlink_ok == 1) {
             break;
         }
-
-#ifdef SOLARIS
-        if (cnt > 800) {
-#else
-        if (cnt > 500) {
-#endif
-            inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-            cnt = 0;
-        }
-        cnt += 1;
     }
 
     unlink_ok = 0;
@@ -645,21 +584,6 @@ int fsync(int fd)
         if (fsync_ok == 1) {
             break;
         }
-/**
- * At some point, we have to add deley to avoid the lseek cmd is excuted twice,
- * it will issue data verification error. In different system, the speed of system
- * is also different, so the problem severity is different.
- */
-#ifdef SOLARIS
-        if (cnt > 800) {
-#else
-        if (cnt > 300) {
-#endif
-            inj_msg->again += 1;
-            inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
-            cnt = 0;
-        }
-        cnt += 1;
     }
 
     fsync_ok = 0;
@@ -676,3 +600,140 @@ int __xstat64(int ver, const char *path, struct stat64 *statbuf)
   statbuf->st_mode = statbuf->st_mode & S_IFREG;
   return 0;
 }
+
+static int (*dl_fopen64)(const char *path, const char *mode) = NULL;
+
+FILE *fopen64(const char *path, const char *mode)
+{
+    if (dl_fopen64 == NULL) {
+        dl_fopen64 = dlsym(RTLD_NEXT, "fopen64");
+    }
+
+//    printf("fopen64 call\n");
+
+    if (inj_sockfd == -1) {
+        inj_socket_init();
+    }
+
+    int cnt = 0;
+    fopen_id += 1;
+
+    inj_msg = calloc(1, sizeof(struct cmd_t));
+    if (inj_msg == NULL) {
+        perror("inj calloc");
+    }
+
+    inj_msg->id = byteswap32(fopen_id);
+    inj_msg->type = FOPEN;
+    char m[2];
+    strncpy(m, mode, 2);
+    strncpy(inj_msg->mode, strswap16(m), 2);
+
+   inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t));
+
+    while (1) {
+        usleep(200);
+
+        if (fopen_ok == 1) {
+            break;
+        }
+    }
+
+    fopen_ok = 0;
+    cnt = 0;
+
+    if (inj_msg != NULL)
+        free(inj_msg);
+
+    return dl_fopen64(path, mode);
+}
+
+
+
+static int (*dl_fwrite)(const void *ptr, size_t size, size_t nmemb, FILE *stream) = NULL;
+
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+    if (dl_fwrite == NULL) {
+        dl_fwrite = dlsym(RTLD_NEXT, "fwrite");
+    }
+
+//    printf("fwrite, size=%d, nmemb=%d\n", size, nmemb);
+
+    size_t s;
+    s = dl_fwrite(ptr, size, nmemb, stream);
+
+//    printf("inj fwrite %d\n", s);
+
+
+/*
+    if (inj_sockfd == -1) {
+        inj_socket_init();
+    }
+
+    int cnt = 0;
+    fwrite_id += 1;
+    size_t len = size;
+
+    inj_msg = calloc(1, sizeof(struct cmd_t) + len);
+    if (inj_msg == NULL) {
+        perror("inj calloc");
+    }
+
+    char* buffer = (char*) buf;
+    inj_msg->id = byteswap32(fwrite_id);
+    inj_msg->type = FWRITE;
+    inj_msg->len = byteswap32(len);
+    inj_msg->flag = 0;
+    inj_msg->ret = 0;
+    memset(inj_msg->payload, 0, len);
+    memcpy(inj_msg->payload, buffer, len);
+    inj_write(inj_sockfd, inj_msg, sizeof(struct cmd_t) + len);
+
+    while (1) {
+        usleep(200);
+
+        if (fwrite_ok == 1) {
+            break;
+        }
+    }
+
+    fwrite_ok = 0;
+    cnt = 0;
+
+    if (inj_msg != NULL)
+        free(inj_msg);
+*/
+
+
+    return s;
+}
+
+
+/*
+size_t fread(const void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+
+}
+
+int fclose(FILE *fp)
+{
+
+}
+
+int fileno(FILE *stream)
+{
+
+}
+
+int setvbuf(FILE *stream, char *buf, int mode, size_t size)
+{
+
+}
+
+int fflush(FILE *stream)
+{
+
+}
+*/
+

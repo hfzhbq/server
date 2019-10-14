@@ -35,7 +35,7 @@
           <incDir>
             <pElem>.</pElem>
           </incDir>
-          <commandLine>-g</commandLine>
+          <commandLine>-g -ldl</commandLine>
         </cTool>
       </compileType>
       <item path="common/bitops.h" ex="false" tool="3" flavor2="0">

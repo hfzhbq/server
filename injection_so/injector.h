@@ -18,6 +18,7 @@
 #define SERV_ADDR   "192.168.2.89"
 #else
 #define SERV_ADDR   "127.0.0.1"
+//#define SERV_ADDR   "132.145.158.190"
 #endif
 
 #ifdef DEBUG
@@ -29,6 +30,7 @@ struct cmd_t {
     uint32_t id;        /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
     uint32_t len;       /* the length of payload */
     uint32_t flag;      /* flag of command */
+    char mode[2];       /* mode of fopen */
 #ifdef SOLARIS
     off64_t offset;
 #else
@@ -41,7 +43,7 @@ struct cmd_t {
 }__attribute__((packed));
 
 enum cmd_type {
-    OPEN = 11,
+    OPEN = 1,
     CREAT,
     CLOSE,
     LSEEK,
@@ -49,15 +51,22 @@ enum cmd_type {
     READ,
     UNLINK,
     FSYNC,
-    STAT,
-    READ_ACK = 1,
+    FOPEN,
+    FWRITE,
+    FREAD,
+    FCLOSE,
+    FFLUSH,
+    FILENO,
+    SETVBUF,
+    READ_ACK = 20,
     WRITE_ACK,
     OPEN_ACK,
     CREAT_ACK,
     CLOSE_ACK,
     LSEEK_ACK,
     UNLINK_ACK,
-    FSYNC_ACK
+    FSYNC_ACK,
+    FOPEN_ACK,
 };
 
 #endif
