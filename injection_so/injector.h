@@ -67,6 +67,7 @@ enum cmd_type {
     UNLINK_ACK,
     FSYNC_ACK,
     FOPEN_ACK,
+    FWRITE_ACK
 };
 
 #endif

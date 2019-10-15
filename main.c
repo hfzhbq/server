@@ -64,7 +64,8 @@ enum cmd_type {
     LSEEK_ACK,
     UNLINK_ACK,
     FSYNC_ACK,
-    FOPEN_ACK
+    FOPEN_ACK,
+    FWRITE_ACK
 };
 
 #define	SA	struct sockaddr
@@ -87,6 +88,7 @@ static uint32_t ack_fsync_id = 0;
 static uint32_t ack_close_id = 0;
 
 static uint32_t ack_fopen_id = 0;
+static uint32_t ack_fwrite_id = 0;
 /**
  * even though lseek is called unsuccessfully, but it also will respond. the iozone also call lseek unsuccessfully on reverse read phase.
  */
@@ -476,6 +478,53 @@ int io_parse_cmd(int sockfd)
                 free(io_ack);
             }
         }
+/*
+        else if (cmd.type == WRITE) {
+#ifdef IOSERV_DEBUG
+            printf("server recv FWRITE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+#endif
+            ack_fwrite_id += 1;
+            io_payload = calloc(1, cmd.len);
+            if (io_payload == NULL) {
+                perror("ioserver calloc");
+            }
+
+            nrecv = inj_read(connfd, io_payload, cmd.len);
+
+            if (nrecv < 0) {
+                perror("ioserver recv");
+            }
+            else {
+
+                io_ack = calloc(1, sizeof(cmd));
+                if (io_ack == NULL) {
+                    perror("ioserver calloc");
+                }
+
+                io_ack->type = FWRITE_ACK;
+                io_ack->id = ack_fwrite_id;
+                io_ack->ret = fwrite(stream, io_payload, nrecv);
+
+                if (io_ack->ret < 0) {
+                    perror("ioserver read");
+                }
+
+                int nsend = 0;
+                nsend = send(connfd, io_ack, sizeof(cmd), 0);
+                if (nsend < 0) {
+                    perror("ioserver send");
+                }
+
+                if (io_ack != NULL) {
+                    free(io_ack);
+                }
+            }
+
+            if (io_payload != NULL) {
+                free(io_payload);
+            }
+        }
+*/
         else {
 #ifdef IOSERV_DEBUG
             printf("server recv UNKNOWN cmd type = %d\n", cmd.type);

@@ -38,7 +38,6 @@ static uint32_t fsync_id = 0;
 static uint32_t close_id = 0;
 
 static uint32_t fopen_id = 0;
-
 static uint32_t fwrite_id = 0;
 
 static char* inj_payload = NULL;
@@ -226,9 +225,9 @@ static void *cmd_parse_thread(void *arg)
             else if (cmd.type == FOPEN_ACK) {
                 int len = byteswap32(cmd.len);
                 int id = byteswap32(cmd.id);
-//#ifdef INJ_DEBUG
+#ifdef INJ_DEBUG
                 printf("inj recv FOPEN_ACK cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d\n", cmd.type, id, len, sizeof(cmd));
-//#endif
+#endif
                 fopen_ok = 1;
             }
         }
@@ -264,7 +263,9 @@ static int inj_socket_init()
         //close(inj_sockfd);
         return -1;
     }
+/*
     printf("\nPRELOAD ok : inj_sockfd = %d\n", inj_sockfd);
+*/
 
     int err = 0;
     err = pthread_create(&tid, NULL, cmd_parse_thread, NULL);
@@ -557,9 +558,11 @@ int unlink(const char *path)
     if (inj_msg != NULL)
         free(inj_msg);
 
+/*
     char command[512] = {0};
     snprintf(command, sizeof(command), "rm -rf %s", path);
     system(command);
+*/
     return inj_ret;
 }
 
@@ -609,7 +612,7 @@ FILE *fopen64(const char *path, const char *mode)
         dl_fopen64 = dlsym(RTLD_NEXT, "fopen64");
     }
 
-//    printf("fopen64 call\n");
+    printf("fopen64 call\n");
 
     if (inj_sockfd == -1) {
         inj_socket_init();
@@ -648,8 +651,6 @@ FILE *fopen64(const char *path, const char *mode)
     return dl_fopen64(path, mode);
 }
 
-
-
 static int (*dl_fwrite)(const void *ptr, size_t size, size_t nmemb, FILE *stream) = NULL;
 
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
@@ -662,9 +663,7 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 
     size_t s;
     s = dl_fwrite(ptr, size, nmemb, stream);
-
-//    printf("inj fwrite %d\n", s);
-
+    printf("fwrite call\n");
 
 /*
     if (inj_sockfd == -1) {
@@ -673,14 +672,14 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 
     int cnt = 0;
     fwrite_id += 1;
-    size_t len = size;
+    size_t len = size * nmemb;
 
     inj_msg = calloc(1, sizeof(struct cmd_t) + len);
     if (inj_msg == NULL) {
         perror("inj calloc");
     }
 
-    char* buffer = (char*) buf;
+    char* buffer = (char*) ptr;
     inj_msg->id = byteswap32(fwrite_id);
     inj_msg->type = FWRITE;
     inj_msg->len = byteswap32(len);
@@ -705,35 +704,69 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
         free(inj_msg);
 */
 
-
     return s;
 }
 
-
 /*
-size_t fread(const void *ptr, size_t size, size_t nmemb, FILE *stream)
-{
+static int (*dl_fread)(void *ptr, size_t size, size_t nmemb, FILE *stream)= NULL;
 
+
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+    if (dl_fread == NULL) {
+        dl_fread = dlsym(RTLD_NEXT, "fread");
+    }
+    return dl_fread(ptr, size, nmemb, stream);
 }
 
-int fclose(FILE *fp)
-{
 
+static int (*dl_fclose)(FILE *stream)= NULL;
+
+int fclose(FILE *stream)
+{
+    if (dl_fclose == NULL) {
+        dl_fclose = dlsym(RTLD_NEXT, "fclose");
+    }
+    printf("fclose call\n");
+    return dl_fclose(stream);
 }
+
+static int (*dl_fileno)(FILE *stream)= NULL;
 
 int fileno(FILE *stream)
 {
+    if (dl_fileno == NULL) {
+        dl_fileno = dlsym(RTLD_NEXT, "fileno");
+    }
 
+    printf("fileno call\n");
+    return dl_fileno(stream);
 }
+
+static int (*dl_setvbuf)(FILE *stream, char *buf, int mode, size_t size)= NULL;
 
 int setvbuf(FILE *stream, char *buf, int mode, size_t size)
 {
+    if (dl_setvbuf == NULL) {
+        dl_setvbuf = dlsym(RTLD_NEXT, "setvbuf");
+    }
 
+    printf("setvbuf call\n");
+    return dl_setvbuf(stream, buf, mode, size);
 }
+
+
+static int (*dl_fflush)(FILE *stream)= NULL;
 
 int fflush(FILE *stream)
 {
+    if (dl_fflush == NULL) {
+        dl_fflush = dlsym(RTLD_NEXT, "fflush");
+    }
 
+    printf("fflush call\n");
+    return dl_fflush(stream);
 }
 */
+
 
