@@ -4,7 +4,7 @@
  * Usage: ./ioserver
  */
 #define _GNU_SOURCE
-//#define SOLARIS
+#define SOLARIS
 //#define DEBUG
 
 #include <stdio.h>
@@ -28,7 +28,8 @@ struct cmd_t {
     uint32_t id;    /* id is from 1 to 0xFFFFFFFF, id is +1 for next request packet */
     uint32_t len;   /* the length of payload */
     uint32_t flag;  /* flag of command */
-    char mode[2];       /* mode of fopen64 */
+    uint32_t fd;    /* file descriptor */
+    char mode[2];   /* mode of fopen64 */
 #ifdef SOLARIS
     off64_t offset;
 #else
@@ -222,7 +223,7 @@ int io_parse_cmd(int sockfd)
 
         else if (cmd.type == WRITE) {
 #ifdef IOSERV_DEBUG
-            printf("server recv WRITE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again);
+            printf("server recv WRITE cmd: type = %d, id = %d, payload_len = %d, msg_header_size = %d, again = %d, fd = %d\n", cmd.type, cmd.id, cmd.len, sizeof(cmd), cmd.again, cmd.fd);
 #endif
             ack_write_id += 1;
             io_payload = calloc(1, cmd.len);
@@ -244,7 +245,12 @@ int io_parse_cmd(int sockfd)
 
                 io_ack->type = WRITE_ACK;
                 io_ack->id = ack_write_id;
-                io_ack->ret = write(sock2fd, io_payload, nrecv);
+                if (cmd.fd >= 3 && sock2fd != -1) {
+                    io_ack->ret = write(sock2fd, io_payload, nrecv);
+                }
+                else if(cmd.fd < 3) {
+                    io_ack->ret = write(cmd.fd, io_payload, nrecv);
+                }
 
                 if (io_ack->ret < 0) {
                     perror("ioserver read");
@@ -571,8 +577,9 @@ int main(int argc, char** argv)
 
     bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
     getsockname(listenfd, (struct sockaddr *)&listen_addr, sizeof(listen_addr));
+#ifdef IOSERV_DEBUG
     printf("ioserver listen address = %s:%d\n", inet_ntoa(listen_addr.sin_addr), ntohs(listen_addr.sin_port));
-
+#endif
     listen(listenfd, SOMAXCONN);
 
     signal(SIGINT, ioserver_stop);
@@ -580,18 +587,19 @@ int main(int argc, char** argv)
     while (1) {
 
         connfd = accept(listenfd, (SA*)NULL, NULL);
+#ifdef IOSERV_DEBUG
         getsockname(connfd, (struct sockaddr *)&connect_addr, sizeof(connect_addr));
         printf("connected server address = %s:%d\n", inet_ntoa(connect_addr.sin_addr), ntohs(connect_addr.sin_port));
         getpeername(connfd, (struct sockaddr *)&peer_addr, sizeof(peer_addr));
         printf("connected peer address = %s:%d\n", inet_ntop(AF_INET, &peer_addr.sin_addr, ip_addr, sizeof(ip_addr)), ntohs(peer_addr.sin_port));
-
+#endif
         if (connfd < 0) {
             printf("Error: %d\n", strerror(errno));
             return 1;
         }
-
+#ifdef IOSERV_DEBUG
         printf("Connection is established\n");
-
+#endif
         pid = fork();
         if (pid == 0) {
             close(listenfd);
