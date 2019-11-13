@@ -24,7 +24,7 @@ CLEAN_SUBPROJECTS=${CLEAN_SUBPROJECTS_${SUBPROJECTS}}
 
 
 # Project Name
-PROJECTNAME=jni_inj
+PROJECTNAME=libinj_jni
 
 # Active Configuration
 DEFAULTCONF=Debug

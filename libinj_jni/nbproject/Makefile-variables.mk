@@ -9,19 +9,19 @@ CND_DISTDIR=dist
 # Debug configuration
 CND_PLATFORM_Debug=GNU-Linux
 CND_ARTIFACT_DIR_Debug=dist/Debug/GNU-Linux
-CND_ARTIFACT_NAME_Debug=libjni_inj.so
-CND_ARTIFACT_PATH_Debug=dist/Debug/GNU-Linux/libjni_inj.so
+CND_ARTIFACT_NAME_Debug=liblibinj_jni.so
+CND_ARTIFACT_PATH_Debug=dist/Debug/GNU-Linux/liblibinj_jni.so
 CND_PACKAGE_DIR_Debug=dist/Debug/GNU-Linux/package
-CND_PACKAGE_NAME_Debug=libjniinj.so.tar
-CND_PACKAGE_PATH_Debug=dist/Debug/GNU-Linux/package/libjniinj.so.tar
+CND_PACKAGE_NAME_Debug=liblibinjjni.so.tar
+CND_PACKAGE_PATH_Debug=dist/Debug/GNU-Linux/package/liblibinjjni.so.tar
 # Release configuration
 CND_PLATFORM_Release=GNU-Linux
 CND_ARTIFACT_DIR_Release=dist/Release/GNU-Linux
-CND_ARTIFACT_NAME_Release=libjni_inj.so
-CND_ARTIFACT_PATH_Release=dist/Release/GNU-Linux/libjni_inj.so
+CND_ARTIFACT_NAME_Release=liblibinj_jni.so
+CND_ARTIFACT_PATH_Release=dist/Release/GNU-Linux/liblibinj_jni.so
 CND_PACKAGE_DIR_Release=dist/Release/GNU-Linux/package
-CND_PACKAGE_NAME_Release=libjniinj.so.tar
-CND_PACKAGE_PATH_Release=dist/Release/GNU-Linux/package/libjniinj.so.tar
+CND_PACKAGE_NAME_Release=liblibinjjni.so.tar
+CND_PACKAGE_PATH_Release=dist/Release/GNU-Linux/package/liblibinjjni.so.tar
 #
 # include compiler specific variables
 #
